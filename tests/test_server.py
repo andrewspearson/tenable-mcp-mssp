@@ -17,7 +17,10 @@ class ServerToolRegistrationTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(
             [tool.name for tool in tools],
-            ["list_mssp_child_accounts"],
+            [
+                "list_mssp_child_accounts",
+                "list_available_tenable_mcp_tools",
+            ],
         )
 
 

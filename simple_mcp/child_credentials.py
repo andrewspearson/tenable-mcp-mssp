@@ -6,6 +6,8 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
+from simple_mcp.child_api_keys import generate_child_api_keys
+
 
 SECRET_FIELDS = {"access_key", "secret_key"}
 
@@ -157,6 +159,20 @@ def get_child_credentials(child_container_uuid: str) -> ChildCredential:
     """Return stored credentials for later Tenable MCP calls."""
 
     return child_credential_store.get(child_container_uuid)
+
+
+def get_or_generate_child_credentials(
+    child_container_uuid: str,
+    key_generator: Any = generate_child_api_keys,
+    store: ChildCredentialStore = child_credential_store,
+) -> ChildCredential:
+    """Return stored child credentials, generating new credentials if needed."""
+
+    try:
+        return store.get(child_container_uuid)
+    except ChildCredentialStoreError:
+        response = key_generator(child_container_uuid)
+        return store.store(response)
 
 
 def _require_non_empty_string(value: Any, field_name: str) -> str:

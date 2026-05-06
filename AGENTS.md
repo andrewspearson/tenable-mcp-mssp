@@ -7,7 +7,7 @@ In this project we are going to create a very simple MCP server with tools for i
 2. [List all connected child tenants](https://developer.tenable.com/reference/io-mssp-accounts-list).
 3. Report the full child/tenant account objects returned by the API.
 
-The second tool will [generate temporary child API keys](https://developer.tenable.com/reference/io-mssp-child-containers-generate-keys) for a specified child container UUID.
+Temporary child API keys are generated internally with the [generate child API keys](https://developer.tenable.com/reference/io-mssp-child-containers-generate-keys) endpoint when a tool needs to call Tenable's hosted MCP server for a child container. Generated child keys must stay in memory only and must not be returned by public MCP tools.
 
 Here is an example of how to use [pyTenable](https://pytenable.readthedocs.io/en/stable/api/base/platform.html) to:
 1. Authenticate to the Tenable MSSP Portal via API keys.

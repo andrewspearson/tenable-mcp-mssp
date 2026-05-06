@@ -7,6 +7,7 @@ import unittest
 from simple_mcp.child_credentials import (
     ChildCredentialStore,
     ChildCredentialStoreError,
+    get_or_generate_child_credentials,
 )
 
 
@@ -127,6 +128,59 @@ class ChildCredentialStoreTests(unittest.TestCase):
         with self.assertRaisesRegex(ChildCredentialStoreError, "No stored"):
             store.get("expired-child")
         self.assertEqual(store.get("valid-child").child_container_uuid, "valid-child")
+
+    def test_get_or_generate_reuses_valid_credentials(self) -> None:
+        """Valid stored credentials should be reused without generation."""
+
+        store = ChildCredentialStore(clock=lambda: 1_000)
+        stored_credential = store.store(credential_response())
+
+        def fail_generator(child_container_uuid: str) -> dict[str, object]:
+            raise AssertionError("key generator should not be called")
+
+        credential = get_or_generate_child_credentials(
+            "child-uuid",
+            key_generator=fail_generator,
+            store=store,
+        )
+
+        self.assertEqual(credential, stored_credential)
+
+    def test_get_or_generate_generates_missing_credentials(self) -> None:
+        """Missing credentials should trigger internal key generation."""
+
+        store = ChildCredentialStore(clock=lambda: 1_000)
+
+        credential = get_or_generate_child_credentials(
+            "child-uuid",
+            key_generator=lambda child_uuid: credential_response(
+                child_container_uuid=child_uuid,
+            ),
+            store=store,
+        )
+
+        self.assertEqual(credential.child_container_uuid, "child-uuid")
+        self.assertEqual(store.get("child-uuid"), credential)
+
+    def test_get_or_generate_regenerates_expired_credentials(self) -> None:
+        """Expired credentials should trigger internal key regeneration."""
+
+        now = 1_000
+        store = ChildCredentialStore(clock=lambda: now)
+        store.store(credential_response(access_key="old-key", expiration=1_001))
+        now = 1_002
+
+        credential = get_or_generate_child_credentials(
+            "child-uuid",
+            key_generator=lambda child_uuid: credential_response(
+                child_container_uuid=child_uuid,
+                access_key="new-key",
+                expiration=2_000,
+            ),
+            store=store,
+        )
+
+        self.assertEqual(credential.access_key, "new-key")
 
 
 if __name__ == "__main__":

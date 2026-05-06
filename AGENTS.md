@@ -5,7 +5,7 @@ I am very new to MCP and this is a learning project for me.
 In this project we are going to create a very simple MCP server with a single tool. The tool will simply [list all child accounts](https://developer.tenable.com/reference/io-mssp-accounts-list) connected to a Tenable MSSP Portal. It will take the following actions:
 1. Authenticate to the MSSP Portal with API keys utilizing the [pyTenable](https://github.com/tenable/pyTenable) Python library.
 2. [List all connected child tenants](https://developer.tenable.com/reference/io-mssp-accounts-list).
-3. Report the child/tenant name and UUID.
+3. Report the full child/tenant account objects returned by the API.
 
 Here is an example of how to use [pyTenable](https://pytenable.readthedocs.io/en/stable/api/base/platform.html) to:
 1. Authenticate to the Tenable MSSP Portal via API keys.

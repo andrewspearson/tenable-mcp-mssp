@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
 from typing import Any
 
 from tenable.io import TenableIO
@@ -14,24 +13,11 @@ ACCOUNT_LIST_PATH = "mssp/accounts"
 ACCOUNT_LIST_HEADERS = {"Content-Type": "application/json"}
 
 
-@dataclass(frozen=True, slots=True)
-class ChildAccount:
-    """A Tenable MSSP child account."""
-
-    name: str
-    uuid: str
-
-    def to_dict(self) -> dict[str, str]:
-        """Return a JSON-serializable representation of the account."""
-
-        return asdict(self)
-
-
 class AccountListingError(RuntimeError):
     """Raised when child accounts cannot be retrieved or parsed."""
 
 
-def list_child_accounts(client: TenableIO | None = None) -> list[ChildAccount]:
+def list_child_accounts(client: TenableIO | None = None) -> list[dict[str, Any]]:
     """List child accounts connected to the Tenable MSSP Portal."""
 
     current_client = client or create_tenable_client()
@@ -48,15 +34,7 @@ def list_child_accounts(client: TenableIO | None = None) -> list[ChildAccount]:
     return parse_child_accounts(payload)
 
 
-def list_child_accounts_as_dicts(
-    client: TenableIO | None = None,
-) -> list[dict[str, str]]:
-    """List child accounts as JSON-serializable dictionaries."""
-
-    return [account.to_dict() for account in list_child_accounts(client)]
-
-
-def parse_child_accounts(payload: Any) -> list[ChildAccount]:
+def parse_child_accounts(payload: Any) -> list[dict[str, Any]]:
     """Parse a Tenable MSSP account list response."""
 
     if not isinstance(payload, dict):
@@ -69,19 +47,10 @@ def parse_child_accounts(payload: Any) -> list[ChildAccount]:
     return [_parse_child_account(account) for account in accounts]
 
 
-def _parse_child_account(account: Any) -> ChildAccount:
+def _parse_child_account(account: Any) -> dict[str, Any]:
     """Parse one child account from the Tenable response."""
 
     if not isinstance(account, dict):
         raise AccountListingError("Invalid account entry: expected an object.")
 
-    account_uuid = account.get("uuid")
-    account_name = account.get("container_name")
-
-    if not isinstance(account_uuid, str) or not account_uuid.strip():
-        raise AccountListingError("Invalid account entry: missing uuid.")
-
-    if not isinstance(account_name, str) or not account_name.strip():
-        raise AccountListingError("Invalid account entry: missing container_name.")
-
-    return ChildAccount(name=account_name, uuid=account_uuid)
+    return account

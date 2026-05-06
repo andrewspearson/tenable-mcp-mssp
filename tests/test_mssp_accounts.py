@@ -8,9 +8,7 @@ from simple_mcp.mssp_accounts import (
     ACCOUNT_LIST_HEADERS,
     ACCOUNT_LIST_PATH,
     AccountListingError,
-    ChildAccount,
     list_child_accounts,
-    list_child_accounts_as_dicts,
     parse_child_accounts,
 )
 
@@ -47,16 +45,18 @@ class ParseChildAccountsTests(unittest.TestCase):
     """Tests for account response parsing."""
 
     def test_successful_tenant_parsing(self) -> None:
-        """Valid Tenable account payloads should return name and UUID only."""
+        """Valid Tenable account payloads should preserve account fields."""
 
+        account_payload = {
+            "uuid": "a87cc2b8-29ea-4d71-9903-69e12048c5ac",
+            "container_name": "MSSP Example 1",
+            "container_uuid": "parent-uuid",
+            "created_at": "2026-05-06T00:00:00Z",
+        }
         accounts = parse_child_accounts(
             {
                 "accounts": [
-                    {
-                        "uuid": "a87cc2b8-29ea-4d71-9903-69e12048c5ac",
-                        "container_name": "MSSP Example 1",
-                        "container_uuid": "ignored-parent-uuid",
-                    },
+                    account_payload,
                     {
                         "uuid": "33cd81ea-1bea-43d9-a158-8d727089c539",
                         "container_name": "MSSP Example 2",
@@ -68,14 +68,11 @@ class ParseChildAccountsTests(unittest.TestCase):
         self.assertEqual(
             accounts,
             [
-                ChildAccount(
-                    name="MSSP Example 1",
-                    uuid="a87cc2b8-29ea-4d71-9903-69e12048c5ac",
-                ),
-                ChildAccount(
-                    name="MSSP Example 2",
-                    uuid="33cd81ea-1bea-43d9-a158-8d727089c539",
-                ),
+                account_payload,
+                {
+                    "uuid": "33cd81ea-1bea-43d9-a158-8d727089c539",
+                    "container_name": "MSSP Example 2",
+                },
             ],
         )
 
@@ -85,19 +82,11 @@ class ParseChildAccountsTests(unittest.TestCase):
         with self.assertRaisesRegex(AccountListingError, "missing accounts list"):
             parse_child_accounts({})
 
-    def test_malformed_account_without_uuid_raises_error(self) -> None:
-        """An account without a UUID should fail cleanly."""
+    def test_malformed_account_entry_raises_error(self) -> None:
+        """A non-object account entry should fail cleanly."""
 
-        with self.assertRaisesRegex(AccountListingError, "missing uuid"):
-            parse_child_accounts(
-                {"accounts": [{"container_name": "MSSP Example"}]}
-            )
-
-    def test_malformed_account_without_name_raises_error(self) -> None:
-        """An account without a name should fail cleanly."""
-
-        with self.assertRaisesRegex(AccountListingError, "missing container_name"):
-            parse_child_accounts({"accounts": [{"uuid": "tenant-uuid"}]})
+        with self.assertRaisesRegex(AccountListingError, "expected an object"):
+            parse_child_accounts({"accounts": ["not-an-object"]})
 
 
 class ListChildAccountsTests(unittest.TestCase):
@@ -112,6 +101,7 @@ class ListChildAccountsTests(unittest.TestCase):
                     {
                         "uuid": "a87cc2b8-29ea-4d71-9903-69e12048c5ac",
                         "container_name": "MSSP Example 1",
+                        "container_uuid": "parent-uuid",
                     }
                 ]
             }
@@ -124,35 +114,10 @@ class ListChildAccountsTests(unittest.TestCase):
         self.assertEqual(
             accounts,
             [
-                ChildAccount(
-                    name="MSSP Example 1",
-                    uuid="a87cc2b8-29ea-4d71-9903-69e12048c5ac",
-                )
-            ],
-        )
-
-    def test_list_child_accounts_as_dicts_returns_json_friendly_values(self) -> None:
-        """The MCP-facing helper should return dictionaries."""
-
-        client = FakeTenableClient(
-            {
-                "accounts": [
-                    {
-                        "uuid": "33cd81ea-1bea-43d9-a158-8d727089c539",
-                        "container_name": "MSSP Example 2",
-                    }
-                ]
-            }
-        )
-
-        accounts = list_child_accounts_as_dicts(client)
-
-        self.assertEqual(
-            accounts,
-            [
                 {
-                    "name": "MSSP Example 2",
-                    "uuid": "33cd81ea-1bea-43d9-a158-8d727089c539",
+                    "uuid": "a87cc2b8-29ea-4d71-9903-69e12048c5ac",
+                    "container_name": "MSSP Example 1",
+                    "container_uuid": "parent-uuid",
                 }
             ],
         )

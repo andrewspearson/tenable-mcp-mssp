@@ -5,13 +5,13 @@ from __future__ import annotations
 from fastmcp import FastMCP
 
 from simple_mcp import __version__
-from simple_mcp.mssp_accounts import list_child_accounts_as_dicts
+from simple_mcp.mssp_accounts import list_child_accounts
 
 
-def list_mssp_child_accounts() -> list[dict[str, str]]:
-    """List Tenable MSSP child account names and UUIDs."""
+def list_mssp_child_accounts() -> list[dict[str, object]]:
+    """List Tenable MSSP child accounts."""
 
-    return list_child_accounts_as_dicts()
+    return list_child_accounts()
 
 
 def create_server() -> FastMCP:
@@ -24,7 +24,7 @@ def create_server() -> FastMCP:
     )
     server.tool(
         name="list_mssp_child_accounts",
-        description="List Tenable MSSP child account names and UUIDs.",
+        description="List Tenable MSSP child accounts.",
     )(list_mssp_child_accounts)
 
     return server

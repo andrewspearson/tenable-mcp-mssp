@@ -6,6 +6,7 @@ from fastmcp import FastMCP
 
 from simple_mcp import __version__
 from simple_mcp.child_api_keys import generate_child_api_keys as generate_keys
+from simple_mcp.child_credentials import store_child_credentials
 from simple_mcp.mssp_accounts import list_child_accounts
 
 
@@ -36,10 +37,11 @@ def generate_child_api_keys(
 ) -> dict[str, object]:
     """Generate temporary API keys for a Tenable MSSP child container."""
 
-    return generate_keys(
+    key_response = generate_keys(
         child_container_uuid,
         keys_validity_duration_seconds,
     )
+    return store_child_credentials(key_response)
 
 
 def main() -> None:

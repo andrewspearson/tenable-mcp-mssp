@@ -9,6 +9,8 @@ from typing import Any
 
 LICENSED_APPS_FIELD = "licensed_apps"
 LICENSE_EXPIRATION_DATE_FIELD = "license_expiration_date"
+LICENSE_TYPE_FIELD = "licenseType"
+EXCLUDED_LICENSE_TYPES = frozenset({"ao"})
 TENABLE_ONE_LICENSES = frozenset({"one", "aiv"})
 VULNERABILITY_MANAGEMENT_LICENSE = "vm"
 
@@ -43,6 +45,16 @@ def supports_vulnerability_management(account: Mapping[str, Any]) -> bool:
     """Return whether a child account supports Vulnerability Management tools."""
 
     return has_license(account, VULNERABILITY_MANAGEMENT_LICENSE)
+
+
+def has_excluded_license_type(account: Mapping[str, Any]) -> bool:
+    """Return whether a child account has a license type excluded from actions."""
+
+    license_type = account.get(LICENSE_TYPE_FIELD)
+    if not isinstance(license_type, str):
+        return False
+
+    return license_type.strip().casefold() in EXCLUDED_LICENSE_TYPES
 
 
 def get_license_expiration_epoch(account: Mapping[str, Any]) -> int | None:

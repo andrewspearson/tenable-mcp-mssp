@@ -329,6 +329,51 @@ class MultiChildTenableMcpTests(unittest.IsolatedAsyncioTestCase):
             "child account license is expired",
         )
 
+    async def test_ao_license_type_child_is_skipped_without_required_license(
+        self,
+    ) -> None:
+        """AO license type children should be skipped before recipe execution."""
+
+        calls: list[str] = []
+
+        async def fake_recipe_runner(
+            child_uuid: str,
+            recipe: list[dict[str, object]],
+        ) -> dict[str, object]:
+            calls.append(child_uuid)
+            return {
+                "child_container_uuid": child_uuid,
+                "status": "succeeded",
+                "steps": [],
+            }
+
+        result = await run_tenable_mcp_recipe_across_child_containers(
+            ["active-child", "ao-child"],
+            [{"tool_name": "asset_list"}],
+            recipe_runner=fake_recipe_runner,
+            account_lister=lambda: [
+                {
+                    "uuid": "active-child",
+                    "license_expiration_date": ACTIVE_LICENSE_EXPIRATION,
+                    "licenseType": "ep",
+                },
+                {
+                    "uuid": "ao-child",
+                    "license_expiration_date": ACTIVE_LICENSE_EXPIRATION,
+                    "licenseType": "ao",
+                },
+            ],
+        )
+
+        self.assertEqual(calls, ["active-child"])
+        self.assertEqual(result["succeeded"], 1)
+        self.assertEqual(result["skipped"], 1)
+        self.assertEqual(result["children"][1]["status"], "skipped")
+        self.assertEqual(
+            result["children"][1]["reason"],
+            "child account license type is excluded from actions",
+        )
+
     async def test_malformed_expiration_is_skipped_without_required_license(
         self,
     ) -> None:

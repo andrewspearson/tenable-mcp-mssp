@@ -7,6 +7,7 @@ import unittest
 from tenable_mcp_mssp.account_capabilities import (
     get_license_expiration_epoch,
     has_license,
+    has_excluded_license_type,
     has_valid_license_expiration,
     is_license_expired,
     supports_tenable_one_inventory,
@@ -88,6 +89,15 @@ class AccountCapabilitiesTests(unittest.TestCase):
 
         self.assertFalse(has_license(account, ""))
         self.assertFalse(has_license(account, "   "))
+
+    def test_ao_license_type_is_excluded(self) -> None:
+        """AO license type child accounts should be excluded from actions."""
+
+        self.assertTrue(has_excluded_license_type({"licenseType": "ao"}))
+        self.assertTrue(has_excluded_license_type({"licenseType": " AO "}))
+        self.assertFalse(has_excluded_license_type({"licenseType": "ep"}))
+        self.assertFalse(has_excluded_license_type({}))
+        self.assertFalse(has_excluded_license_type({"licenseType": None}))
 
     def test_future_license_expiration_is_valid(self) -> None:
         """Future expiration timestamps should be eligible."""

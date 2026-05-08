@@ -7,6 +7,7 @@ from typing import Any
 
 from tenable_mcp_mssp.account_capabilities import (
     get_license_expiration_epoch,
+    has_excluded_license_type,
     is_license_expired,
 )
 from tenable_mcp_mssp.mssp_accounts import list_child_accounts
@@ -58,5 +59,8 @@ def child_account_ineligible_reason(
 
     if is_license_expired(account):
         return "child account license is expired"
+
+    if has_excluded_license_type(account):
+        return "child account license type is excluded from actions"
 
     return None

@@ -84,6 +84,27 @@ class ChildAccountEligibilityTests(unittest.TestCase):
             "child account license expiration date is missing or invalid",
         )
 
+    def test_child_account_ineligible_reason_rejects_ao_license_type(
+        self,
+    ) -> None:
+        """AO license type children should not be eligible for action."""
+
+        reason = child_account_ineligible_reason(
+            "child-1",
+            {
+                "child-1": {
+                    "uuid": "child-1",
+                    "license_expiration_date": 4_102_444_800,
+                    "licenseType": "ao",
+                }
+            },
+        )
+
+        self.assertEqual(
+            reason,
+            "child account license type is excluded from actions",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

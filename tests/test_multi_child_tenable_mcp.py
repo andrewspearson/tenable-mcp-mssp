@@ -8,7 +8,7 @@ import unittest
 from collections.abc import Callable
 from unittest.mock import patch
 
-from simple_mcp.multi_child_tenable_mcp import (
+from tenable_mcp_mssp.multi_child_tenable_mcp import (
     MultiChildRecipeError,
     run_tenable_mcp_recipe_across_child_containers,
 )
@@ -489,7 +489,7 @@ class MultiChildTenableMcpTests(unittest.IsolatedAsyncioTestCase):
             return await recipe_run  # type: ignore[misc]
 
         with patch(
-            "simple_mcp.multi_child_tenable_mcp.asyncio.wait_for",
+            "tenable_mcp_mssp.multi_child_tenable_mcp.asyncio.wait_for",
             side_effect=fake_wait_for,
         ):
             result = await run_tenable_mcp_recipe_across_child_containers(
@@ -523,7 +523,7 @@ class MultiChildTenableMcpTests(unittest.IsolatedAsyncioTestCase):
             }
 
         with patch(
-            "simple_mcp.multi_child_tenable_mcp.asyncio.wait_for",
+            "tenable_mcp_mssp.multi_child_tenable_mcp.asyncio.wait_for",
             side_effect=AssertionError("wait_for should not be called"),
         ):
             result = await run_tenable_mcp_recipe_across_child_containers(

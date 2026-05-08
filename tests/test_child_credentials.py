@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from simple_mcp.child_credentials import (
+from tenable_mcp_mssp.child_credentials import (
     ChildCredentialStore,
     ChildCredentialStoreError,
     get_or_generate_child_credentials,

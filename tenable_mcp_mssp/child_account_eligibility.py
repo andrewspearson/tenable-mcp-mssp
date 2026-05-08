@@ -5,11 +5,11 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from typing import Any
 
-from simple_mcp.account_capabilities import (
+from tenable_mcp_mssp.account_capabilities import (
     get_license_expiration_epoch,
     is_license_expired,
 )
-from simple_mcp.mssp_accounts import list_child_accounts
+from tenable_mcp_mssp.mssp_accounts import list_child_accounts
 
 
 class ChildAccountEligibilityError(RuntimeError):

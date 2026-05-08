@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from simple_mcp.child_api_keys import (
+from tenable_mcp_mssp.child_api_keys import (
     CHILD_KEYS_HEADERS,
     CHILD_KEYS_PATH,
     ChildApiKeyGenerationError,

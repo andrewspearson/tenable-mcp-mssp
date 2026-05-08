@@ -5,12 +5,12 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from simple_mcp.child_account_eligibility import require_active_child_account
-from simple_mcp.child_credentials import (
+from tenable_mcp_mssp.child_account_eligibility import require_active_child_account
+from tenable_mcp_mssp.child_credentials import (
     ChildCredential,
     get_or_generate_child_credentials,
 )
-from simple_mcp.tenable_mcp_client import (
+from tenable_mcp_mssp.tenable_mcp_client import (
     call_tenable_mcp_tool,
     list_tenable_mcp_tools,
 )

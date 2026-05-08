@@ -6,17 +6,17 @@ import asyncio
 from collections.abc import Awaitable, Callable, Mapping
 from typing import Any
 
-from simple_mcp.account_capabilities import (
+from tenable_mcp_mssp.account_capabilities import (
     has_license,
     supports_tenable_one_inventory,
     supports_vulnerability_management,
 )
-from simple_mcp.child_account_eligibility import (
+from tenable_mcp_mssp.child_account_eligibility import (
     build_child_account_lookup,
     child_account_ineligible_reason,
 )
-from simple_mcp.mssp_accounts import list_child_accounts
-from simple_mcp.single_child_tenable_mcp import run_tenable_mcp_recipe_for_child
+from tenable_mcp_mssp.mssp_accounts import list_child_accounts
+from tenable_mcp_mssp.single_child_tenable_mcp import run_tenable_mcp_recipe_for_child
 
 
 DEFAULT_MAX_CONCURRENCY = 10

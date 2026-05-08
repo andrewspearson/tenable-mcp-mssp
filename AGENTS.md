@@ -1,8 +1,8 @@
 ### Background
-I am very new to MCP and this is a learning project for me.
+This project provides an MCP server for orchestrating Tenable MSSP child-container workflows.
 
 ## Solution
-In this project we are going to create a very simple MCP server with tools for interacting with a Tenable MSSP Portal. The first tool will [list all child accounts](https://developer.tenable.com/reference/io-mssp-accounts-list) connected to a Tenable MSSP Portal. It will take the following actions:
+In this project we are going to create a Tenable MCP MSSP server with tools for interacting with a Tenable MSSP Portal. The first tool will [list all child accounts](https://developer.tenable.com/reference/io-mssp-accounts-list) connected to a Tenable MSSP Portal. It will take the following actions:
 1. Authenticate to the MSSP Portal with API keys utilizing the [pyTenable](https://github.com/tenable/pyTenable) Python library.
 2. [List all connected child tenants](https://developer.tenable.com/reference/io-mssp-accounts-list).
 3. Report the full child/tenant account objects returned by the API.

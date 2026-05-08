@@ -1,4 +1,4 @@
-"""Configuration loading for the Simple MCP server."""
+"""Configuration loading for the Tenable MCP MSSP server."""
 
 from __future__ import annotations
 

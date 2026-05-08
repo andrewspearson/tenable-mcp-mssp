@@ -3,9 +3,9 @@ requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "simple-mcp"
+name = "tenable-mcp-mssp"
 version = "0.1.0"
-description = "A simple MCP server for listing Tenable MSSP child accounts."
+description = "An MCP server for orchestrating Tenable MSSP child container workflows."
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
@@ -14,8 +14,8 @@ dependencies = [
 ]
 
 [project.scripts]
-simple-mcp = "simple_mcp.server:main"
+tenable-mcp-mssp = "tenable_mcp_mssp.server:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["simple_mcp*"]
+include = ["tenable_mcp_mssp*"]

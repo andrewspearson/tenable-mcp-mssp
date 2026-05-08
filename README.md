@@ -1,7 +1,6 @@
-# simple-mcp
+# tenable-mcp-mssp
 
-A learning project for building a small FastMCP server that lists Tenable MSSP
-child accounts.
+A FastMCP server for orchestrating Tenable MSSP child container workflows.
 
 ## Setup
 
@@ -12,7 +11,7 @@ child accounts.
 ## Run
 
 ```bash
-./.venv/bin/python -m simple_mcp.server
+./.venv/bin/python -m tenable_mcp_mssp.server
 ```
 
 ## Test

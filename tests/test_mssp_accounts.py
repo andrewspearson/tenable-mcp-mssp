@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from simple_mcp.mssp_accounts import (
+from tenable_mcp_mssp.mssp_accounts import (
     ACCOUNT_LIST_HEADERS,
     ACCOUNT_LIST_PATH,
     AccountListingError,

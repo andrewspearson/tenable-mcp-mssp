@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 from dataclasses import dataclass
 
-from simple_mcp.tenable_mcp_client import (
+from tenable_mcp_mssp.tenable_mcp_client import (
     API_KEYS_HEADER_NAME,
     TENABLE_MCP_URL,
     TenableMcpClientError,

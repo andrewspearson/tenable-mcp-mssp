@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from simple_mcp.account_capabilities import (
+from tenable_mcp_mssp.account_capabilities import (
     get_license_expiration_epoch,
     has_license,
     has_valid_license_expiration,

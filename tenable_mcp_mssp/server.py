@@ -1,15 +1,15 @@
-"""FastMCP server entrypoint for the Simple MCP project."""
+"""FastMCP server entrypoint for the Tenable MCP MSSP project."""
 
 from __future__ import annotations
 
 from fastmcp import Context, FastMCP
 
-from simple_mcp import __version__
-from simple_mcp.mssp_accounts import list_child_accounts
-from simple_mcp.multi_child_tenable_mcp import (
+from tenable_mcp_mssp import __version__
+from tenable_mcp_mssp.mssp_accounts import list_child_accounts
+from tenable_mcp_mssp.multi_child_tenable_mcp import (
     run_tenable_mcp_recipe_across_child_containers as run_recipe_across_children,
 )
-from simple_mcp.single_child_tenable_mcp import (
+from tenable_mcp_mssp.single_child_tenable_mcp import (
     list_available_tenable_mcp_tools as list_tools_for_child,
     run_tenable_mcp_recipe_for_child as run_recipe_for_child,
     run_tenable_mcp_tool_for_child as run_tool_for_child,

@@ -1,4 +1,4 @@
-"""Simple MCP server package."""
+"""Tenable MCP MSSP server package."""
 
 __all__ = ["__version__"]
 

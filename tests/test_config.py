@@ -6,7 +6,7 @@ import os
 import unittest
 from unittest.mock import patch
 
-from simple_mcp.config import ConfigurationError, get_settings
+from tenable_mcp_mssp.config import ConfigurationError, get_settings
 
 
 class GetSettingsTests(unittest.TestCase):
@@ -17,7 +17,7 @@ class GetSettingsTests(unittest.TestCase):
 
         with (
             patch.dict(os.environ, {}, clear=True),
-            patch("simple_mcp.config.load_dotenv"),
+            patch("tenable_mcp_mssp.config.load_dotenv"),
             self.assertRaisesRegex(
                 ConfigurationError,
                 (

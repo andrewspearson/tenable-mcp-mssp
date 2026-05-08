@@ -6,7 +6,7 @@ from typing import Any
 
 from tenable.io import TenableIO
 
-from simple_mcp.tenable_client import create_tenable_client
+from tenable_mcp_mssp.tenable_client import create_tenable_client
 
 
 ACCOUNT_LIST_PATH = "mssp/accounts"

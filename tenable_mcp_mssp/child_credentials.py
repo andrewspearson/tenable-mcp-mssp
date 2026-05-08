@@ -6,7 +6,7 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-from simple_mcp.child_api_keys import generate_child_api_keys
+from tenable_mcp_mssp.child_api_keys import generate_child_api_keys
 
 
 SECRET_FIELDS = {"access_key", "secret_key"}

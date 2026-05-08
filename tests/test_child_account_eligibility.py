@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from simple_mcp.child_account_eligibility import (
+from tenable_mcp_mssp.child_account_eligibility import (
     ChildAccountEligibilityError,
     build_child_account_lookup,
     child_account_ineligible_reason,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from simple_mcp.server import mcp
+from tenable_mcp_mssp.server import mcp
 
 
 class ServerToolRegistrationTests(unittest.IsolatedAsyncioTestCase):

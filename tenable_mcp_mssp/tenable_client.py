@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from tenable.io import TenableIO
 
-from simple_mcp.config import Settings, get_settings
+from tenable_mcp_mssp.config import Settings, get_settings
 
 
 def create_tenable_client(settings: Settings | None = None) -> TenableIO:

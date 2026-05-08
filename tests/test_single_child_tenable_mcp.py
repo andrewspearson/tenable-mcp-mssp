@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import unittest
 
-from simple_mcp.child_account_eligibility import ChildAccountEligibilityError
-from simple_mcp.child_credentials import ChildCredential
-from simple_mcp.single_child_tenable_mcp import (
+from tenable_mcp_mssp.child_account_eligibility import ChildAccountEligibilityError
+from tenable_mcp_mssp.child_credentials import ChildCredential
+from tenable_mcp_mssp.single_child_tenable_mcp import (
     TenableMcpRecipeError,
     list_available_tenable_mcp_tools,
     run_tenable_mcp_recipe_for_child,

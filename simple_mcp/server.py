@@ -97,7 +97,6 @@ async def run_tenable_mcp_recipe_across_child_containers(
     child_container_uuids: list[str],
     recipe: list[dict[str, object]],
     required_license: str | None = None,
-    max_concurrency: int = 10,
 ) -> dict[str, object]:
     """Run a recipe of official Tenable MCP tools across child containers."""
 
@@ -105,7 +104,6 @@ async def run_tenable_mcp_recipe_across_child_containers(
         child_container_uuids,
         recipe,
         required_license,
-        max_concurrency,
     )
 
 

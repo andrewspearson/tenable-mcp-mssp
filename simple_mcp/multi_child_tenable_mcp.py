@@ -16,6 +16,7 @@ from simple_mcp.single_child_tenable_mcp import run_tenable_mcp_recipe_for_child
 
 
 DEFAULT_MAX_CONCURRENCY = 10
+DEFAULT_CHILD_TIMEOUT_SECONDS = 300
 VULNERABILITY_MANAGEMENT_ALIAS = "vulnerability_management"
 TENABLE_ONE_INVENTORY_ALIAS = "tenable_one_inventory"
 
@@ -29,6 +30,7 @@ async def run_tenable_mcp_recipe_across_child_containers(
     recipe: list[dict[str, object]],
     required_license: str | None = None,
     max_concurrency: int = DEFAULT_MAX_CONCURRENCY,
+    child_timeout_seconds: int | None = DEFAULT_CHILD_TIMEOUT_SECONDS,
     recipe_runner: Callable[
         [str, list[dict[str, object]]],
         Awaitable[dict[str, object]],
@@ -39,6 +41,7 @@ async def run_tenable_mcp_recipe_across_child_containers(
 
     validated_child_uuids = _validate_child_container_uuids(child_container_uuids)
     validated_max_concurrency = _validate_max_concurrency(max_concurrency)
+    validated_child_timeout = _validate_child_timeout(child_timeout_seconds)
     license_requirement = _normalize_required_license(required_license)
     account_lookup = (
         _build_account_lookup(account_lister) if license_requirement else {}
@@ -61,7 +64,19 @@ async def run_tenable_mcp_recipe_across_child_containers(
 
         async with semaphore:
             try:
-                result = await recipe_runner(child_container_uuid, recipe)
+                result = await _run_recipe_with_timeout(
+                    recipe_runner(child_container_uuid, recipe),
+                    validated_child_timeout,
+                )
+            except TimeoutError:
+                return {
+                    "child_container_uuid": child_container_uuid,
+                    "status": "failed",
+                    "error": (
+                        "child recipe timed out after "
+                        f"{validated_child_timeout} seconds"
+                    ),
+                }
             except Exception as exc:
                 return {
                     "child_container_uuid": child_container_uuid,
@@ -129,6 +144,36 @@ def _validate_max_concurrency(max_concurrency: Any) -> int:
         raise MultiChildRecipeError("max_concurrency must be a positive integer.")
 
     return max_concurrency
+
+
+def _validate_child_timeout(child_timeout_seconds: Any) -> int | None:
+    """Validate per-child timeout input."""
+
+    if child_timeout_seconds is None:
+        return None
+
+    if (
+        not isinstance(child_timeout_seconds, int)
+        or isinstance(child_timeout_seconds, bool)
+        or child_timeout_seconds < 1
+    ):
+        raise MultiChildRecipeError(
+            "child_timeout_seconds must be a positive integer or None."
+        )
+
+    return child_timeout_seconds
+
+
+async def _run_recipe_with_timeout(
+    recipe_run: Awaitable[dict[str, object]],
+    child_timeout_seconds: int | None,
+) -> dict[str, object]:
+    """Run one child recipe with an optional timeout."""
+
+    if child_timeout_seconds is None:
+        return await recipe_run
+
+    return await asyncio.wait_for(recipe_run, timeout=child_timeout_seconds)
 
 
 def _normalize_required_license(required_license: str | None) -> str | None:

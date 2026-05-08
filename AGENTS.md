@@ -14,9 +14,10 @@ The MCP server is an orchestrator for MSSP child-container work:
 2. Use `list_available_tenable_mcp_tools(child_container_uuid)` to discover the official Tenable MCP tool catalog for one child container.
 3. Use `run_tenable_mcp_tool_for_child(child_container_uuid, tool_name, arguments)` to experiment with one official Tenable MCP tool on one child container.
 4. After a working sequence is known, use `run_tenable_mcp_recipe_for_child(child_container_uuid, recipe)` to validate that recipe on one child.
-5. Use `run_tenable_mcp_recipe_across_child_containers(child_container_uuids, recipe, required_license, max_concurrency)` only after the recipe is known to work, so fan-out is controlled and predictable.
+5. Use `run_tenable_mcp_recipe_across_child_containers(child_container_uuids, recipe, required_license)` only after the recipe is known to work, so fan-out is controlled and predictable.
 
 For multi-child fan-out, `required_license` can be a raw Tenable license code such as `vm`, `one`, or `aiv`, or one of the supported capability aliases: `vulnerability_management` or `tenable_one_inventory`.
+Multi-child fan-out uses hard-coded operational safety limits: concurrency is fixed at 10 child containers, and each child recipe run times out after 300 seconds.
 
 Here is an example of how to use [pyTenable](https://pytenable.readthedocs.io/en/stable/api/base/platform.html) to:
 1. Authenticate to the Tenable MSSP Portal via API keys.

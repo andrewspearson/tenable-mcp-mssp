@@ -26,6 +26,26 @@ class ServerToolRegistrationTests(unittest.IsolatedAsyncioTestCase):
             ],
         )
 
+    async def test_multi_child_runner_does_not_expose_operational_limits(
+        self,
+    ) -> None:
+        """Concurrency and timeout controls should remain internal settings."""
+
+        tools = await mcp.list_tools(run_middleware=False)
+        fan_out_tool = next(
+            tool
+            for tool in tools
+            if tool.name == "run_tenable_mcp_recipe_across_child_containers"
+        )
+
+        properties = fan_out_tool.parameters["properties"]
+
+        self.assertIn("child_container_uuids", properties)
+        self.assertIn("recipe", properties)
+        self.assertIn("required_license", properties)
+        self.assertNotIn("max_concurrency", properties)
+        self.assertNotIn("child_timeout_seconds", properties)
+
 
 if __name__ == "__main__":
     unittest.main()

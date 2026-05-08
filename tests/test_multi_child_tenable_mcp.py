@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import unittest
+from unittest.mock import patch
 
 from simple_mcp.multi_child_tenable_mcp import (
     MultiChildRecipeError,
@@ -268,6 +269,82 @@ class MultiChildTenableMcpTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("access_key", serialized_report)
         self.assertNotIn("secret_key", serialized_report)
 
+    async def test_child_timeout_fails_bad_child_and_allows_others(
+        self,
+    ) -> None:
+        """One timed-out child should not block other child reports."""
+
+        async def fake_recipe_runner(
+            child_uuid: str,
+            recipe: list[dict[str, object]],
+        ) -> dict[str, object]:
+            if child_uuid == "child-hangs":
+                await asyncio.Event().wait()
+            return {
+                "child_container_uuid": child_uuid,
+                "status": "succeeded",
+                "steps": [],
+            }
+
+        async def fake_wait_for(
+            recipe_run: object,
+            timeout: int,
+        ) -> dict[str, object]:
+            child_uuid = recipe_run.cr_frame.f_locals[  # type: ignore[attr-defined]
+                "child_uuid"
+            ]
+            if child_uuid == "child-hangs":
+                recipe_run.close()  # type: ignore[attr-defined]
+                raise TimeoutError
+            return await recipe_run  # type: ignore[misc]
+
+        with patch(
+            "simple_mcp.multi_child_tenable_mcp.asyncio.wait_for",
+            side_effect=fake_wait_for,
+        ):
+            result = await run_tenable_mcp_recipe_across_child_containers(
+                ["child-ok", "child-hangs"],
+                [{"tool_name": "asset_list"}],
+                child_timeout_seconds=42,
+                recipe_runner=fake_recipe_runner,
+            )
+
+        self.assertEqual(result["succeeded"], 1)
+        self.assertEqual(result["failed"], 1)
+        self.assertEqual(result["children"][0]["status"], "succeeded")
+        self.assertEqual(result["children"][1]["status"], "failed")
+        self.assertEqual(
+            result["children"][1]["error"],
+            "child recipe timed out after 42 seconds",
+        )
+
+    async def test_child_timeout_none_disables_wait_for(self) -> None:
+        """None timeout should run child recipes without asyncio.wait_for."""
+
+        async def fake_recipe_runner(
+            child_uuid: str,
+            recipe: list[dict[str, object]],
+        ) -> dict[str, object]:
+            return {
+                "child_container_uuid": child_uuid,
+                "status": "succeeded",
+                "steps": [],
+            }
+
+        with patch(
+            "simple_mcp.multi_child_tenable_mcp.asyncio.wait_for",
+            side_effect=AssertionError("wait_for should not be called"),
+        ):
+            result = await run_tenable_mcp_recipe_across_child_containers(
+                ["child-1"],
+                [{"tool_name": "asset_list"}],
+                child_timeout_seconds=None,
+                recipe_runner=fake_recipe_runner,
+            )
+
+        self.assertEqual(result["succeeded"], 1)
+        self.assertEqual(result["failed"], 0)
+
     async def test_invalid_inputs_raise_clear_errors(self) -> None:
         """Fan-out input validation should fail before execution."""
 
@@ -278,12 +355,21 @@ class MultiChildTenableMcpTests(unittest.IsolatedAsyncioTestCase):
             raise AssertionError("recipe runner should not be called")
 
         invalid_cases = [
-            ([], 10, "non-empty list"),
-            (["child-1", ""], 10, "item 1"),
-            (["child-1"], 0, "positive integer"),
+            ([], 10, 300, "non-empty list"),
+            (["child-1", ""], 10, 300, "item 1"),
+            (["child-1"], 0, 300, "max_concurrency"),
+            (["child-1"], 10, 0, "child_timeout_seconds"),
+            (["child-1"], 10, -1, "child_timeout_seconds"),
+            (["child-1"], 10, "bad", "child_timeout_seconds"),
+            (["child-1"], 10, True, "child_timeout_seconds"),
         ]
 
-        for child_uuids, max_concurrency, expected_message in invalid_cases:
+        for (
+            child_uuids,
+            max_concurrency,
+            child_timeout_seconds,
+            expected_message,
+        ) in invalid_cases:
             with self.subTest(child_uuids=child_uuids):
                 with self.assertRaisesRegex(
                     MultiChildRecipeError,
@@ -293,8 +379,9 @@ class MultiChildTenableMcpTests(unittest.IsolatedAsyncioTestCase):
                         child_uuids,
                         [{"tool_name": "asset_list"}],
                         max_concurrency=max_concurrency,
+                        child_timeout_seconds=child_timeout_seconds,
                         recipe_runner=fail_if_called,
-                    )
+                    )  # type: ignore[arg-type]
 
 
 if __name__ == "__main__":

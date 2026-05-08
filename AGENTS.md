@@ -57,7 +57,7 @@ accounts = parent_client.get('mssp/accounts', headers=headers).json()
 2. **Tenable client wrapper**
    Add a small module that reads API keys from environment variables and creates a `TenableIO` client.
 3. **MSSP account listing function**
-   Implement the logic that calls `mssp/accounts`, parses the response, and returns only tenant name + UUID.
+   Implement the logic that calls `mssp/accounts`, parses the response, and returns the full child/tenant account objects returned by the API.
 4. **FastMCP tool**
    Expose that function as one MCP tool.
 5. **Error handling and testing**

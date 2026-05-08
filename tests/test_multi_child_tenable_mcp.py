@@ -366,6 +366,68 @@ class MultiChildTenableMcpTests(unittest.IsolatedAsyncioTestCase):
             ],
         )
 
+    async def test_batch_progress_messages_are_reported(self) -> None:
+        """Fan-out should emit batch-scoped progress messages."""
+
+        progress_events: list[tuple[int, int, str]] = []
+
+        async def fake_progress_reporter(
+            done: int,
+            total: int,
+            message: str,
+        ) -> None:
+            progress_events.append((done, total, message))
+
+        async def fake_recipe_runner(
+            child_uuid: str,
+            recipe: list[dict[str, object]],
+        ) -> dict[str, object]:
+            return {
+                "child_container_uuid": child_uuid,
+                "status": "succeeded",
+                "steps": [],
+            }
+
+        await run_tenable_mcp_recipe_across_child_containers(
+            ["active-child", "expired-child"],
+            [{"tool_name": "asset_list"}],
+            recipe_runner=fake_recipe_runner,
+            account_lister=lambda: [
+                {
+                    "uuid": "active-child",
+                    "license_expiration_date": ACTIVE_LICENSE_EXPIRATION,
+                },
+                {"uuid": "expired-child", "license_expiration_date": 1},
+            ],
+            progress_reporter=fake_progress_reporter,
+        )
+
+        self.assertEqual(
+            progress_events[0],
+            (0, 2, "Batch started: 2 requested child containers."),
+        )
+        self.assertIn(
+            (
+                0,
+                2,
+                "Batch running: child active-child.",
+            ),
+            progress_events,
+        )
+        self.assertIn(
+            "Batch skipped: child expired-child: "
+            "child account license is expired.",
+            [event[2] for event in progress_events],
+        )
+        self.assertIn(
+            "Batch completed child active-child: succeeded.",
+            [event[2] for event in progress_events],
+        )
+        self.assertEqual(
+            progress_events[-1],
+            (2, 2, "Batch complete: 1 succeeded, 0 failed, 1 skipped."),
+        )
+
     async def test_reports_do_not_include_child_api_keys(self) -> None:
         """Returned fan-out reports should not include child API key fields."""
 

@@ -23,6 +23,7 @@ DEFAULT_MAX_CONCURRENCY = 10
 DEFAULT_CHILD_TIMEOUT_SECONDS = 300
 VULNERABILITY_MANAGEMENT_ALIAS = "vulnerability_management"
 TENABLE_ONE_INVENTORY_ALIAS = "tenable_one_inventory"
+ProgressReporter = Callable[[int, int, str], Awaitable[None]]
 
 
 class MultiChildRecipeError(ValueError):
@@ -40,6 +41,7 @@ async def run_tenable_mcp_recipe_across_child_containers(
         Awaitable[dict[str, object]],
     ] = run_tenable_mcp_recipe_for_child,
     account_lister: Callable[[], list[dict[str, Any]]] = list_child_accounts,
+    progress_reporter: ProgressReporter | None = None,
 ) -> dict[str, object]:
     """Run a Tenable MCP recipe across multiple child containers."""
 
@@ -49,6 +51,26 @@ async def run_tenable_mcp_recipe_across_child_containers(
     license_requirement = _normalize_required_license(required_license)
     account_lookup = build_child_account_lookup(account_lister)
     semaphore = asyncio.Semaphore(validated_max_concurrency)
+    total_children = len(validated_child_uuids)
+    completed_children = 0
+    progress_lock = asyncio.Lock()
+
+    async def report_progress(done: int, message: str) -> None:
+        if progress_reporter is not None:
+            await progress_reporter(done, total_children, message)
+
+    async def mark_child_done(message: str) -> None:
+        nonlocal completed_children
+        async with progress_lock:
+            completed_children += 1
+            done = completed_children
+
+        await report_progress(done, message)
+
+    await report_progress(
+        0,
+        f"Batch started: {total_children} requested child containers.",
+    )
 
     async def run_one(child_container_uuid: str) -> dict[str, object]:
         active_skip_reason = child_account_ineligible_reason(
@@ -56,6 +78,10 @@ async def run_tenable_mcp_recipe_across_child_containers(
             account_lookup,
         )
         if active_skip_reason:
+            await mark_child_done(
+                f"Batch skipped: child {child_container_uuid}: "
+                f"{active_skip_reason}."
+            )
             return {
                 "child_container_uuid": child_container_uuid,
                 "status": "skipped",
@@ -69,6 +95,10 @@ async def run_tenable_mcp_recipe_across_child_containers(
                 license_requirement,
             )
             if skip_reason:
+                await mark_child_done(
+                    f"Batch skipped: child {child_container_uuid}: "
+                    f"{skip_reason}."
+                )
                 return {
                     "child_container_uuid": child_container_uuid,
                     "status": "skipped",
@@ -76,12 +106,19 @@ async def run_tenable_mcp_recipe_across_child_containers(
                 }
 
         async with semaphore:
+            await report_progress(
+                completed_children,
+                f"Batch running: child {child_container_uuid}.",
+            )
             try:
                 result = await _run_recipe_with_timeout(
                     recipe_runner(child_container_uuid, recipe),
                     validated_child_timeout,
                 )
             except TimeoutError:
+                await mark_child_done(
+                    f"Batch completed child {child_container_uuid}: failed."
+                )
                 return {
                     "child_container_uuid": child_container_uuid,
                     "status": "failed",
@@ -91,6 +128,9 @@ async def run_tenable_mcp_recipe_across_child_containers(
                     ),
                 }
             except Exception as exc:
+                await mark_child_done(
+                    f"Batch completed child {child_container_uuid}: failed."
+                )
                 return {
                     "child_container_uuid": child_container_uuid,
                     "status": "failed",
@@ -98,6 +138,9 @@ async def run_tenable_mcp_recipe_across_child_containers(
                 }
 
         if not isinstance(result, dict):
+            await mark_child_done(
+                f"Batch completed child {child_container_uuid}: failed."
+            )
             return {
                 "child_container_uuid": child_container_uuid,
                 "status": "failed",
@@ -106,12 +149,18 @@ async def run_tenable_mcp_recipe_across_child_containers(
 
         status = result.get("status")
         if status not in {"succeeded", "failed"}:
+            await mark_child_done(
+                f"Batch completed child {child_container_uuid}: failed."
+            )
             return {
                 "child_container_uuid": child_container_uuid,
                 "status": "failed",
                 "error": "Recipe runner returned an invalid status.",
             }
 
+        await mark_child_done(
+            f"Batch completed child {child_container_uuid}: {status}."
+        )
         return {
             "child_container_uuid": child_container_uuid,
             "status": status,
@@ -122,11 +171,22 @@ async def run_tenable_mcp_recipe_across_child_containers(
         *(run_one(child_uuid) for child_uuid in validated_child_uuids)
     )
 
+    succeeded = _count_status(children, "succeeded")
+    failed = _count_status(children, "failed")
+    skipped = _count_status(children, "skipped")
+    await report_progress(
+        total_children,
+        (
+            "Batch complete: "
+            f"{succeeded} succeeded, {failed} failed, {skipped} skipped."
+        ),
+    )
+
     return {
         "queued": len(validated_child_uuids),
-        "succeeded": _count_status(children, "succeeded"),
-        "failed": _count_status(children, "failed"),
-        "skipped": _count_status(children, "skipped"),
+        "succeeded": succeeded,
+        "failed": failed,
+        "skipped": skipped,
         "children": children,
     }
 

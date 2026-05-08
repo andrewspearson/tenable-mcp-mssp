@@ -43,6 +43,7 @@ class ServerToolRegistrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("child_container_uuids", properties)
         self.assertIn("recipe", properties)
         self.assertIn("required_license", properties)
+        self.assertNotIn("ctx", properties)
         self.assertNotIn("max_concurrency", properties)
         self.assertNotIn("child_timeout_seconds", properties)
 

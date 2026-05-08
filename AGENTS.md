@@ -19,6 +19,7 @@ The MCP server is an orchestrator for MSSP child-container work:
 
 For multi-child fan-out, `required_license` can be a raw Tenable license code such as `vm`, `one`, or `aiv`, or one of the supported capability aliases: `vulnerability_management` or `tenable_one_inventory`.
 Multi-child fan-out uses hard-coded operational safety limits: concurrency is fixed at 10 child containers, and each child recipe run times out after 300 seconds.
+Multi-child fan-out emits batch-scoped progress messages. Treat these as observability for the current MCP call, not as durable job state.
 
 Here is an example of how to use [pyTenable](https://pytenable.readthedocs.io/en/stable/api/base/platform.html) to:
 1. Authenticate to the Tenable MSSP Portal via API keys.

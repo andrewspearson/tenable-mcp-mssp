@@ -6,19 +6,25 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from tenable_mcp_mssp import __version__
+
 
 DEFAULT_ENV_FILE = Path(".env")
+MSSP_PORTAL_ACCESS_KEY_ENV = "TENABLE_MSSP_PORTAL_ACCESS_KEY"
+MSSP_PORTAL_SECRET_KEY_ENV = "TENABLE_MSSP_PORTAL_SECRET_KEY"
+INTEGRATION_VENDOR = "github.com/andrewspearson"
+INTEGRATION_PRODUCT = "tenable-mcp-mssp"
 
 
 @dataclass(frozen=True, slots=True)
 class Settings:
     """Application settings loaded from the environment."""
 
-    tenable_access_key: str = field(repr=False)
-    tenable_secret_key: str = field(repr=False)
-    tenable_vendor: str
-    tenable_product: str
-    tenable_build: str = "1.0.0"
+    mssp_portal_access_key: str = field(repr=False)
+    mssp_portal_secret_key: str = field(repr=False)
+    tenable_vendor: str = INTEGRATION_VENDOR
+    tenable_product: str = INTEGRATION_PRODUCT
+    tenable_build: str = __version__
 
 
 class ConfigurationError(RuntimeError):
@@ -63,19 +69,14 @@ def get_settings() -> Settings:
     load_dotenv()
 
     values = {
-        "tenable_access_key": os.environ.get("TENABLE_ACCESS_KEY", ""),
-        "tenable_secret_key": os.environ.get("TENABLE_SECRET_KEY", ""),
-        "tenable_vendor": os.environ.get("TENABLE_VENDOR", ""),
-        "tenable_product": os.environ.get("TENABLE_PRODUCT", ""),
-        "tenable_build": os.environ.get("TENABLE_BUILD", "1.0.0"),
+        "mssp_portal_access_key": os.environ.get(MSSP_PORTAL_ACCESS_KEY_ENV, ""),
+        "mssp_portal_secret_key": os.environ.get(MSSP_PORTAL_SECRET_KEY_ENV, ""),
     }
     missing = [
         env_name
         for field_name, env_name in (
-            ("tenable_access_key", "TENABLE_ACCESS_KEY"),
-            ("tenable_secret_key", "TENABLE_SECRET_KEY"),
-            ("tenable_vendor", "TENABLE_VENDOR"),
-            ("tenable_product", "TENABLE_PRODUCT"),
+            ("mssp_portal_access_key", MSSP_PORTAL_ACCESS_KEY_ENV),
+            ("mssp_portal_secret_key", MSSP_PORTAL_SECRET_KEY_ENV),
         )
         if not values[field_name]
     ]

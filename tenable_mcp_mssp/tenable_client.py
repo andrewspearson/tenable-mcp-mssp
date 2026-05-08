@@ -13,8 +13,8 @@ def create_tenable_client(settings: Settings | None = None) -> TenableIO:
     current_settings = settings or get_settings()
 
     return TenableIO(
-        access_key=current_settings.tenable_access_key,
-        secret_key=current_settings.tenable_secret_key,
+        access_key=current_settings.mssp_portal_access_key,
+        secret_key=current_settings.mssp_portal_secret_key,
         vendor=current_settings.tenable_vendor,
         product=current_settings.tenable_product,
         build=current_settings.tenable_build,

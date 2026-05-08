@@ -8,6 +8,7 @@ In this project we are going to create a very simple MCP server with tools for i
 3. Report the full child/tenant account objects returned by the API.
 
 Temporary child API keys are generated internally with the [generate child API keys](https://developer.tenable.com/reference/io-mssp-child-containers-generate-keys) endpoint when a tool needs to call Tenable's hosted MCP server for a child container. Generated child keys must stay in memory only and must not be returned by public MCP tools.
+Expired child accounts must not be used for official Tenable MCP actions. Keep `list_mssp_child_accounts` raw so an MSSP can see every child container returned by Tenable, but block or skip action attempts when `license_expiration_date` is missing, malformed, or expired.
 
 The MCP server is an orchestrator for MSSP child-container work:
 1. Use `list_mssp_child_accounts` to get the raw child account objects, including license data.

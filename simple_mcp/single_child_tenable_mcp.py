@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from simple_mcp.child_account_eligibility import require_active_child_account
 from simple_mcp.child_credentials import (
     ChildCredential,
     get_or_generate_child_credentials,
@@ -25,9 +26,11 @@ async def list_available_tenable_mcp_tools(
         get_or_generate_child_credentials
     ),
     tool_lister: Callable[[str, str], Any] = list_tenable_mcp_tools,
+    eligibility_checker: Callable[[str], object] = require_active_child_account,
 ) -> list[dict[str, Any]]:
     """List official Tenable MCP tools available to a child container."""
 
+    eligibility_checker(child_container_uuid)
     credential = credential_provider(child_container_uuid)
     return await tool_lister(
         credential.access_key,
@@ -45,9 +48,11 @@ async def run_tenable_mcp_tool_for_child(
     tool_runner: Callable[[str, str, str, dict[str, Any] | None], Any] = (
         call_tenable_mcp_tool
     ),
+    eligibility_checker: Callable[[str], object] = require_active_child_account,
 ) -> object:
     """Run an official Tenable MCP tool for a child container."""
 
+    eligibility_checker(child_container_uuid)
     credential = credential_provider(child_container_uuid)
     return await tool_runner(
         credential.access_key,
@@ -61,15 +66,18 @@ async def run_tenable_mcp_recipe_for_child(
     child_container_uuid: str,
     recipe: list[dict[str, object]],
     step_runner: Callable[[str, dict[str, Any] | None], Any] | None = None,
+    eligibility_checker: Callable[[str], object] = require_active_child_account,
 ) -> dict[str, object]:
     """Run a recipe of official Tenable MCP tools for a child container."""
 
     validated_recipe = _validate_recipe(recipe)
+    eligibility_checker(child_container_uuid)
     current_step_runner = step_runner or (
         lambda tool_name, arguments: run_tenable_mcp_tool_for_child(
             child_container_uuid,
             tool_name,
             arguments,
+            eligibility_checker=lambda child_uuid: None,
         )
     )
     steps: list[dict[str, object]] = []

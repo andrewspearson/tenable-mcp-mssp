@@ -5,7 +5,10 @@ from __future__ import annotations
 import unittest
 
 from simple_mcp.account_capabilities import (
+    get_license_expiration_epoch,
     has_license,
+    has_valid_license_expiration,
+    is_license_expired,
     supports_tenable_one_inventory,
     supports_vulnerability_management,
 )
@@ -85,6 +88,49 @@ class AccountCapabilitiesTests(unittest.TestCase):
 
         self.assertFalse(has_license(account, ""))
         self.assertFalse(has_license(account, "   "))
+
+    def test_future_license_expiration_is_valid(self) -> None:
+        """Future expiration timestamps should be eligible."""
+
+        account = {"license_expiration_date": 200}
+
+        self.assertEqual(get_license_expiration_epoch(account), 200)
+        self.assertTrue(has_valid_license_expiration(account, now=100))
+        self.assertFalse(is_license_expired(account, now=100))
+
+    def test_past_license_expiration_is_expired(self) -> None:
+        """Past expiration timestamps should be expired."""
+
+        account = {"license_expiration_date": 99}
+
+        self.assertFalse(has_valid_license_expiration(account, now=100))
+        self.assertTrue(is_license_expired(account, now=100))
+
+    def test_equal_license_expiration_is_expired(self) -> None:
+        """Expiration timestamps equal to now should be expired."""
+
+        account = {"license_expiration_date": 100}
+
+        self.assertFalse(has_valid_license_expiration(account, now=100))
+        self.assertTrue(is_license_expired(account, now=100))
+
+    def test_missing_or_malformed_license_expiration_is_invalid(self) -> None:
+        """Missing or malformed expiration data should be ineligible."""
+
+        invalid_accounts = [
+            {},
+            {"license_expiration_date": "200"},
+            {"license_expiration_date": None},
+            {"license_expiration_date": True},
+        ]
+
+        for account in invalid_accounts:
+            with self.subTest(account=account):
+                self.assertIsNone(get_license_expiration_epoch(account))
+                self.assertFalse(
+                    has_valid_license_expiration(account, now=100)
+                )
+                self.assertTrue(is_license_expired(account, now=100))
 
 
 if __name__ == "__main__":

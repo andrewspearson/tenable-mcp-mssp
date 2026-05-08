@@ -5,12 +5,31 @@ from __future__ import annotations
 import asyncio
 import json
 import unittest
+from collections.abc import Callable
 from unittest.mock import patch
 
 from simple_mcp.multi_child_tenable_mcp import (
     MultiChildRecipeError,
     run_tenable_mcp_recipe_across_child_containers,
 )
+
+
+ACTIVE_LICENSE_EXPIRATION = 4_102_444_800
+
+
+def active_account_lister(
+    *child_uuids: str,
+) -> Callable[[], list[dict[str, object]]]:
+    """Return a fake account lister with active child accounts."""
+
+    return lambda: [
+        {
+            "uuid": child_uuid,
+            "license_expiration_date": ACTIVE_LICENSE_EXPIRATION,
+            "licensed_apps": ["vm", "one", "aiv"],
+        }
+        for child_uuid in child_uuids
+    ]
 
 
 class MultiChildTenableMcpTests(unittest.IsolatedAsyncioTestCase):
@@ -42,6 +61,7 @@ class MultiChildTenableMcpTests(unittest.IsolatedAsyncioTestCase):
             ["child-1", "child-2"],
             recipe,
             recipe_runner=fake_recipe_runner,
+            account_lister=active_account_lister("child-1", "child-2"),
         )
 
         self.assertEqual(result["queued"], 2)
@@ -75,6 +95,11 @@ class MultiChildTenableMcpTests(unittest.IsolatedAsyncioTestCase):
             ["child-1", "child-2", "child-3"],
             [{"tool_name": "asset_list"}],
             recipe_runner=fake_recipe_runner,
+            account_lister=active_account_lister(
+                "child-1",
+                "child-2",
+                "child-3",
+            ),
         )
 
         self.assertEqual(calls, ["child-1", "child-2", "child-3"])
@@ -109,6 +134,7 @@ class MultiChildTenableMcpTests(unittest.IsolatedAsyncioTestCase):
             ["child-1"],
             [{"tool_name": "asset_list"}],
             recipe_runner=fake_recipe_runner,
+            account_lister=active_account_lister("child-1"),
         )
 
         self.assertEqual(result["failed"], 1)
@@ -141,6 +167,12 @@ class MultiChildTenableMcpTests(unittest.IsolatedAsyncioTestCase):
             [{"tool_name": "asset_list"}],
             max_concurrency=2,
             recipe_runner=fake_recipe_runner,
+            account_lister=active_account_lister(
+                "child-1",
+                "child-2",
+                "child-3",
+                "child-4",
+            ),
         )
 
         self.assertLessEqual(max_seen, 2)
@@ -168,8 +200,16 @@ class MultiChildTenableMcpTests(unittest.IsolatedAsyncioTestCase):
             required_license="vm",
             recipe_runner=fake_recipe_runner,
             account_lister=lambda: [
-                {"uuid": "child-vm", "licensed_apps": ["vm"]},
-                {"uuid": "child-one", "licensed_apps": ["one"]},
+                {
+                    "uuid": "child-vm",
+                    "license_expiration_date": ACTIVE_LICENSE_EXPIRATION,
+                    "licensed_apps": ["vm"],
+                },
+                {
+                    "uuid": "child-one",
+                    "license_expiration_date": ACTIVE_LICENSE_EXPIRATION,
+                    "licensed_apps": ["one"],
+                },
             ],
         )
 
@@ -204,9 +244,21 @@ class MultiChildTenableMcpTests(unittest.IsolatedAsyncioTestCase):
             required_license="tenable_one_inventory",
             recipe_runner=fake_recipe_runner,
             account_lister=lambda: [
-                {"uuid": "child-one", "licensed_apps": ["one"]},
-                {"uuid": "child-aiv", "licensed_apps": ["aiv"]},
-                {"uuid": "child-vm", "licensed_apps": ["vm"]},
+                {
+                    "uuid": "child-one",
+                    "license_expiration_date": ACTIVE_LICENSE_EXPIRATION,
+                    "licensed_apps": ["one"],
+                },
+                {
+                    "uuid": "child-aiv",
+                    "license_expiration_date": ACTIVE_LICENSE_EXPIRATION,
+                    "licensed_apps": ["aiv"],
+                },
+                {
+                    "uuid": "child-vm",
+                    "license_expiration_date": ACTIVE_LICENSE_EXPIRATION,
+                    "licensed_apps": ["vm"],
+                },
             ],
         )
 
@@ -236,7 +288,82 @@ class MultiChildTenableMcpTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["children"][0]["status"], "skipped")
         self.assertEqual(
             result["children"][0]["reason"],
-            "child account not found for required license check",
+            "child account not found for active license check",
+        )
+
+    async def test_expired_child_is_skipped_without_required_license(self) -> None:
+        """Expired children should be skipped before recipe execution."""
+
+        calls: list[str] = []
+
+        async def fake_recipe_runner(
+            child_uuid: str,
+            recipe: list[dict[str, object]],
+        ) -> dict[str, object]:
+            calls.append(child_uuid)
+            return {
+                "child_container_uuid": child_uuid,
+                "status": "succeeded",
+                "steps": [],
+            }
+
+        result = await run_tenable_mcp_recipe_across_child_containers(
+            ["active-child", "expired-child"],
+            [{"tool_name": "asset_list"}],
+            recipe_runner=fake_recipe_runner,
+            account_lister=lambda: [
+                {
+                    "uuid": "active-child",
+                    "license_expiration_date": ACTIVE_LICENSE_EXPIRATION,
+                },
+                {"uuid": "expired-child", "license_expiration_date": 1},
+            ],
+        )
+
+        self.assertEqual(calls, ["active-child"])
+        self.assertEqual(result["succeeded"], 1)
+        self.assertEqual(result["skipped"], 1)
+        self.assertEqual(result["children"][1]["status"], "skipped")
+        self.assertEqual(
+            result["children"][1]["reason"],
+            "child account license is expired",
+        )
+
+    async def test_malformed_expiration_is_skipped_without_required_license(
+        self,
+    ) -> None:
+        """Missing or malformed expiration should be skipped safely."""
+
+        async def fail_if_called(
+            child_uuid: str,
+            recipe: list[dict[str, object]],
+        ) -> dict[str, object]:
+            raise AssertionError("recipe runner should not be called")
+
+        result = await run_tenable_mcp_recipe_across_child_containers(
+            ["missing-expiration", "bad-expiration"],
+            [{"tool_name": "asset_list"}],
+            recipe_runner=fail_if_called,
+            account_lister=lambda: [
+                {"uuid": "missing-expiration"},
+                {
+                    "uuid": "bad-expiration",
+                    "license_expiration_date": "not-a-timestamp",
+                },
+            ],
+        )
+
+        self.assertEqual(result["succeeded"], 0)
+        self.assertEqual(result["skipped"], 2)
+        self.assertEqual(
+            [
+                child["reason"]
+                for child in result["children"]
+            ],
+            [
+                "child account license expiration date is missing or invalid",
+                "child account license expiration date is missing or invalid",
+            ],
         )
 
     async def test_reports_do_not_include_child_api_keys(self) -> None:
@@ -263,6 +390,7 @@ class MultiChildTenableMcpTests(unittest.IsolatedAsyncioTestCase):
             ["child-1"],
             [{"tool_name": "asset_list"}],
             recipe_runner=fake_recipe_runner,
+            account_lister=active_account_lister("child-1"),
         )
 
         serialized_report = json.dumps(result)
@@ -307,6 +435,7 @@ class MultiChildTenableMcpTests(unittest.IsolatedAsyncioTestCase):
                 [{"tool_name": "asset_list"}],
                 child_timeout_seconds=42,
                 recipe_runner=fake_recipe_runner,
+                account_lister=active_account_lister("child-ok", "child-hangs"),
             )
 
         self.assertEqual(result["succeeded"], 1)
@@ -340,6 +469,7 @@ class MultiChildTenableMcpTests(unittest.IsolatedAsyncioTestCase):
                 [{"tool_name": "asset_list"}],
                 child_timeout_seconds=None,
                 recipe_runner=fake_recipe_runner,
+                account_lister=active_account_lister("child-1"),
             )
 
         self.assertEqual(result["succeeded"], 1)

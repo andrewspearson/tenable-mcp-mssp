@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import unittest
 
+from simple_mcp.child_account_eligibility import ChildAccountEligibilityError
 from simple_mcp.child_credentials import ChildCredential
 from simple_mcp.single_child_tenable_mcp import (
     TenableMcpRecipeError,
@@ -11,6 +12,12 @@ from simple_mcp.single_child_tenable_mcp import (
     run_tenable_mcp_recipe_for_child,
     run_tenable_mcp_tool_for_child,
 )
+
+
+def raise_expired_child(child_uuid: str) -> None:
+    """Raise an expired-child eligibility error for tests."""
+
+    raise ChildAccountEligibilityError("child account license is expired")
 
 
 class SingleChildTenableMcpTests(unittest.IsolatedAsyncioTestCase):
@@ -44,6 +51,7 @@ class SingleChildTenableMcpTests(unittest.IsolatedAsyncioTestCase):
             "child-uuid",
             credential_provider=lambda child_uuid: credential,
             tool_lister=fake_tool_lister,
+            eligibility_checker=lambda child_uuid: None,
         )
 
         self.assertEqual(result, tool_result)
@@ -76,6 +84,7 @@ class SingleChildTenableMcpTests(unittest.IsolatedAsyncioTestCase):
             "child-uuid",
             credential_provider=lambda child_uuid: credential,
             tool_lister=fake_tool_lister,
+            eligibility_checker=lambda child_uuid: None,
         )
 
         self.assertNotIn("access_key", result[0])
@@ -114,6 +123,7 @@ class SingleChildTenableMcpTests(unittest.IsolatedAsyncioTestCase):
             arguments,
             credential_provider=lambda child_uuid: credential,
             tool_runner=fake_tool_runner,
+            eligibility_checker=lambda child_uuid: None,
         )
 
         self.assertIs(result, tool_result)
@@ -159,6 +169,7 @@ class SingleChildTenableMcpTests(unittest.IsolatedAsyncioTestCase):
             "asset_list",
             credential_provider=lambda child_uuid: credential,
             tool_runner=fake_tool_runner,
+            eligibility_checker=lambda child_uuid: None,
         )
 
         self.assertEqual(result, ["official-result"])
@@ -204,6 +215,7 @@ class SingleChildTenableMcpTests(unittest.IsolatedAsyncioTestCase):
                         "child-uuid",
                         recipe,  # type: ignore[arg-type]
                         step_runner=fail_if_called,
+                        eligibility_checker=lambda child_uuid: None,
                     )
 
     async def test_run_tenable_mcp_recipe_for_child_runs_steps_in_order(
@@ -227,6 +239,7 @@ class SingleChildTenableMcpTests(unittest.IsolatedAsyncioTestCase):
                 {"tool_name": "finding_search", "arguments": {"severity": "high"}},
             ],
             step_runner=fake_step_runner,
+            eligibility_checker=lambda child_uuid: None,
         )
 
         self.assertEqual(
@@ -285,6 +298,7 @@ class SingleChildTenableMcpTests(unittest.IsolatedAsyncioTestCase):
                 {"tool_name": "never_called"},
             ],
             step_runner=fake_step_runner,
+            eligibility_checker=lambda child_uuid: None,
         )
 
         self.assertEqual(
@@ -316,6 +330,81 @@ class SingleChildTenableMcpTests(unittest.IsolatedAsyncioTestCase):
                 ],
             },
         )
+
+    async def test_list_available_tenable_mcp_tools_blocks_ineligible_child(
+        self,
+    ) -> None:
+        """Ineligible children should be rejected before credentials are used."""
+
+        def fail_credential_provider(child_uuid: str) -> ChildCredential:
+            raise AssertionError("credential provider should not be called")
+
+        async def fail_tool_lister(
+            access_key: str,
+            secret_key: str,
+        ) -> list[dict[str, object]]:
+            raise AssertionError("tool lister should not be called")
+
+        with self.assertRaisesRegex(
+            ChildAccountEligibilityError,
+            "license is expired",
+        ):
+            await list_available_tenable_mcp_tools(
+                "child-uuid",
+                credential_provider=fail_credential_provider,
+                tool_lister=fail_tool_lister,
+                eligibility_checker=raise_expired_child,
+            )
+
+    async def test_run_tenable_mcp_tool_for_child_blocks_ineligible_child(
+        self,
+    ) -> None:
+        """Ineligible children should be rejected before tool execution."""
+
+        def fail_credential_provider(child_uuid: str) -> ChildCredential:
+            raise AssertionError("credential provider should not be called")
+
+        async def fail_tool_runner(
+            access_key: str,
+            secret_key: str,
+            tool_name: str,
+            arguments: dict[str, object] | None = None,
+        ) -> object:
+            raise AssertionError("tool runner should not be called")
+
+        with self.assertRaisesRegex(
+            ChildAccountEligibilityError,
+            "license is expired",
+        ):
+            await run_tenable_mcp_tool_for_child(
+                "child-uuid",
+                "asset_list",
+                credential_provider=fail_credential_provider,
+                tool_runner=fail_tool_runner,
+                eligibility_checker=raise_expired_child,
+            )
+
+    async def test_run_tenable_mcp_recipe_for_child_blocks_ineligible_child(
+        self,
+    ) -> None:
+        """Ineligible children should be rejected before recipe steps run."""
+
+        async def fail_step_runner(
+            tool_name: str,
+            arguments: dict[str, object] | None = None,
+        ) -> object:
+            raise AssertionError("step runner should not be called")
+
+        with self.assertRaisesRegex(
+            ChildAccountEligibilityError,
+            "license is expired",
+        ):
+            await run_tenable_mcp_recipe_for_child(
+                "child-uuid",
+                [{"tool_name": "asset_list"}],
+                step_runner=fail_step_runner,
+                eligibility_checker=raise_expired_child,
+            )
 
 
 if __name__ == "__main__":

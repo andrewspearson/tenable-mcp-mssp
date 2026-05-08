@@ -11,6 +11,10 @@ from simple_mcp.account_capabilities import (
     supports_tenable_one_inventory,
     supports_vulnerability_management,
 )
+from simple_mcp.child_account_eligibility import (
+    build_child_account_lookup,
+    child_account_ineligible_reason,
+)
 from simple_mcp.mssp_accounts import list_child_accounts
 from simple_mcp.single_child_tenable_mcp import run_tenable_mcp_recipe_for_child
 
@@ -43,12 +47,21 @@ async def run_tenable_mcp_recipe_across_child_containers(
     validated_max_concurrency = _validate_max_concurrency(max_concurrency)
     validated_child_timeout = _validate_child_timeout(child_timeout_seconds)
     license_requirement = _normalize_required_license(required_license)
-    account_lookup = (
-        _build_account_lookup(account_lister) if license_requirement else {}
-    )
+    account_lookup = build_child_account_lookup(account_lister)
     semaphore = asyncio.Semaphore(validated_max_concurrency)
 
     async def run_one(child_container_uuid: str) -> dict[str, object]:
+        active_skip_reason = child_account_ineligible_reason(
+            child_container_uuid,
+            account_lookup,
+        )
+        if active_skip_reason:
+            return {
+                "child_container_uuid": child_container_uuid,
+                "status": "skipped",
+                "reason": active_skip_reason,
+            }
+
         if license_requirement:
             skip_reason = _license_skip_reason(
                 child_container_uuid,
@@ -188,18 +201,6 @@ def _normalize_required_license(required_license: str | None) -> str | None:
         )
 
     return required_license.strip().casefold()
-
-
-def _build_account_lookup(
-    account_lister: Callable[[], list[dict[str, Any]]],
-) -> dict[str, dict[str, Any]]:
-    """Build a child account lookup keyed by account UUID."""
-
-    return {
-        account["uuid"]: account
-        for account in account_lister()
-        if isinstance(account.get("uuid"), str)
-    }
 
 
 def _license_skip_reason(

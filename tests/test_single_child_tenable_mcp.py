@@ -5,7 +5,10 @@ from __future__ import annotations
 import unittest
 
 from simple_mcp.child_credentials import ChildCredential
-from simple_mcp.single_child_tenable_mcp import list_available_tenable_mcp_tools
+from simple_mcp.single_child_tenable_mcp import (
+    list_available_tenable_mcp_tools,
+    run_tenable_mcp_tool_for_child,
+)
 
 
 class SingleChildTenableMcpTests(unittest.IsolatedAsyncioTestCase):
@@ -75,6 +78,99 @@ class SingleChildTenableMcpTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertNotIn("access_key", result[0])
         self.assertNotIn("secret_key", result[0])
+
+    async def test_run_tenable_mcp_tool_for_child_forwards_call_inputs(
+        self,
+    ) -> None:
+        """Tool runner should receive child keys, tool name, and arguments."""
+
+        credential = ChildCredential(
+            child_container_uuid="child-uuid",
+            access_key="stored-access-key",
+            secret_key="stored-secret-key",
+        )
+        arguments = {"plugin_id": "12345"}
+        tool_result = {"status": "ok", "items": [{"id": 1}]}
+        calls: list[
+            tuple[str, str, str, dict[str, object] | None]
+        ] = []
+
+        async def fake_tool_runner(
+            access_key: str,
+            secret_key: str,
+            tool_name: str,
+            tool_arguments: dict[str, object] | None = None,
+        ) -> object:
+            calls.append(
+                (access_key, secret_key, tool_name, tool_arguments)
+            )
+            return tool_result
+
+        result = await run_tenable_mcp_tool_for_child(
+            "child-uuid",
+            "vulnerability_findings",
+            arguments,
+            credential_provider=lambda child_uuid: credential,
+            tool_runner=fake_tool_runner,
+        )
+
+        self.assertIs(result, tool_result)
+        self.assertEqual(
+            calls,
+            [
+                (
+                    "stored-access-key",
+                    "stored-secret-key",
+                    "vulnerability_findings",
+                    arguments,
+                )
+            ],
+        )
+
+    async def test_run_tenable_mcp_tool_for_child_handles_none_arguments(
+        self,
+    ) -> None:
+        """None arguments should be forwarded to the lower-level helper."""
+
+        credential = ChildCredential(
+            child_container_uuid="child-uuid",
+            access_key="stored-access-key",
+            secret_key="stored-secret-key",
+        )
+        calls: list[
+            tuple[str, str, str, dict[str, object] | None]
+        ] = []
+
+        async def fake_tool_runner(
+            access_key: str,
+            secret_key: str,
+            tool_name: str,
+            tool_arguments: dict[str, object] | None = None,
+        ) -> object:
+            calls.append(
+                (access_key, secret_key, tool_name, tool_arguments)
+            )
+            return ["official-result"]
+
+        result = await run_tenable_mcp_tool_for_child(
+            "child-uuid",
+            "asset_list",
+            credential_provider=lambda child_uuid: credential,
+            tool_runner=fake_tool_runner,
+        )
+
+        self.assertEqual(result, ["official-result"])
+        self.assertEqual(
+            calls,
+            [
+                (
+                    "stored-access-key",
+                    "stored-secret-key",
+                    "asset_list",
+                    None,
+                )
+            ],
+        )
 
 
 if __name__ == "__main__":

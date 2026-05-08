@@ -9,7 +9,10 @@ from simple_mcp.child_credentials import (
     ChildCredential,
     get_or_generate_child_credentials,
 )
-from simple_mcp.tenable_mcp_client import list_tenable_mcp_tools
+from simple_mcp.tenable_mcp_client import (
+    call_tenable_mcp_tool,
+    list_tenable_mcp_tools,
+)
 
 
 async def list_available_tenable_mcp_tools(
@@ -25,4 +28,26 @@ async def list_available_tenable_mcp_tools(
     return await tool_lister(
         credential.access_key,
         credential.secret_key,
+    )
+
+
+async def run_tenable_mcp_tool_for_child(
+    child_container_uuid: str,
+    tool_name: str,
+    arguments: dict[str, Any] | None = None,
+    credential_provider: Callable[[str], ChildCredential] = (
+        get_or_generate_child_credentials
+    ),
+    tool_runner: Callable[[str, str, str, dict[str, Any] | None], Any] = (
+        call_tenable_mcp_tool
+    ),
+) -> object:
+    """Run an official Tenable MCP tool for a child container."""
+
+    credential = credential_provider(child_container_uuid)
+    return await tool_runner(
+        credential.access_key,
+        credential.secret_key,
+        tool_name,
+        arguments,
     )

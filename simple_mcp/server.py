@@ -8,6 +8,7 @@ from simple_mcp import __version__
 from simple_mcp.mssp_accounts import list_child_accounts
 from simple_mcp.single_child_tenable_mcp import (
     list_available_tenable_mcp_tools as list_tools_for_child,
+    run_tenable_mcp_recipe_for_child as run_recipe_for_child,
     run_tenable_mcp_tool_for_child as run_tool_for_child,
 )
 
@@ -53,6 +54,19 @@ async def run_tenable_mcp_tool_for_child(
     """Run an official Tenable MCP tool for a child container."""
 
     return await run_tool_for_child(child_container_uuid, tool_name, arguments)
+
+
+@mcp.tool(
+    name="run_tenable_mcp_recipe_for_child",
+    description="Run a recipe of official Tenable MCP tools for a child container.",
+)
+async def run_tenable_mcp_recipe_for_child(
+    child_container_uuid: str,
+    recipe: list[dict[str, object]],
+) -> dict[str, object]:
+    """Run a recipe of official Tenable MCP tools for a child container."""
+
+    return await run_recipe_for_child(child_container_uuid, recipe)
 
 
 def main() -> None:

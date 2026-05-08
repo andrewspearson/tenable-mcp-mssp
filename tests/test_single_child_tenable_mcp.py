@@ -6,7 +6,9 @@ import unittest
 
 from simple_mcp.child_credentials import ChildCredential
 from simple_mcp.single_child_tenable_mcp import (
+    TenableMcpRecipeError,
     list_available_tenable_mcp_tools,
+    run_tenable_mcp_recipe_for_child,
     run_tenable_mcp_tool_for_child,
 )
 
@@ -170,6 +172,149 @@ class SingleChildTenableMcpTests(unittest.IsolatedAsyncioTestCase):
                     None,
                 )
             ],
+        )
+
+    async def test_run_tenable_mcp_recipe_for_child_validates_shape(
+        self,
+    ) -> None:
+        """Recipe validation should reject invalid shapes before execution."""
+
+        invalid_recipes = [
+            ([], "non-empty list"),
+            ("not-a-list", "non-empty list"),
+            ([["not-an-object"]], "step 0 must be an object"),
+            ([{}], "step 0 tool_name must be a non-empty string"),
+            ([{"tool_name": "   "}], "step 0 tool_name"),
+            ([{"tool_name": "asset_list", "arguments": []}], "arguments"),
+        ]
+
+        async def fail_if_called(
+            tool_name: str,
+            arguments: dict[str, object] | None = None,
+        ) -> object:
+            raise AssertionError("step runner should not be called")
+
+        for recipe, expected_message in invalid_recipes:
+            with self.subTest(recipe=recipe):
+                with self.assertRaisesRegex(
+                    TenableMcpRecipeError,
+                    expected_message,
+                ):
+                    await run_tenable_mcp_recipe_for_child(
+                        "child-uuid",
+                        recipe,  # type: ignore[arg-type]
+                        step_runner=fail_if_called,
+                    )
+
+    async def test_run_tenable_mcp_recipe_for_child_runs_steps_in_order(
+        self,
+    ) -> None:
+        """Recipe steps should execute sequentially and preserve results."""
+
+        calls: list[tuple[str, dict[str, object] | None]] = []
+
+        async def fake_step_runner(
+            tool_name: str,
+            arguments: dict[str, object] | None = None,
+        ) -> object:
+            calls.append((tool_name, arguments))
+            return {"tool": tool_name, "arguments": arguments}
+
+        result = await run_tenable_mcp_recipe_for_child(
+            "child-uuid",
+            [
+                {"tool_name": "asset_list"},
+                {"tool_name": "finding_search", "arguments": {"severity": "high"}},
+            ],
+            step_runner=fake_step_runner,
+        )
+
+        self.assertEqual(
+            calls,
+            [
+                ("asset_list", None),
+                ("finding_search", {"severity": "high"}),
+            ],
+        )
+        self.assertEqual(
+            result,
+            {
+                "child_container_uuid": "child-uuid",
+                "status": "succeeded",
+                "steps": [
+                    {
+                        "index": 0,
+                        "tool_name": "asset_list",
+                        "status": "succeeded",
+                        "result": {"tool": "asset_list", "arguments": None},
+                    },
+                    {
+                        "index": 1,
+                        "tool_name": "finding_search",
+                        "status": "succeeded",
+                        "result": {
+                            "tool": "finding_search",
+                            "arguments": {"severity": "high"},
+                        },
+                    },
+                ],
+            },
+        )
+
+    async def test_run_tenable_mcp_recipe_for_child_stops_on_failure(
+        self,
+    ) -> None:
+        """Recipe execution should stop on the first failed step."""
+
+        calls: list[tuple[str, dict[str, object] | None]] = []
+
+        async def fake_step_runner(
+            tool_name: str,
+            arguments: dict[str, object] | None = None,
+        ) -> object:
+            calls.append((tool_name, arguments))
+            if tool_name == "failing_tool":
+                raise RuntimeError("official MCP call failed")
+            return {"tool": tool_name}
+
+        result = await run_tenable_mcp_recipe_for_child(
+            "child-uuid",
+            [
+                {"tool_name": "first_tool"},
+                {"tool_name": "failing_tool", "arguments": {"limit": 10}},
+                {"tool_name": "never_called"},
+            ],
+            step_runner=fake_step_runner,
+        )
+
+        self.assertEqual(
+            calls,
+            [
+                ("first_tool", None),
+                ("failing_tool", {"limit": 10}),
+            ],
+        )
+        self.assertEqual(
+            result,
+            {
+                "child_container_uuid": "child-uuid",
+                "status": "failed",
+                "failed_step": 1,
+                "steps": [
+                    {
+                        "index": 0,
+                        "tool_name": "first_tool",
+                        "status": "succeeded",
+                        "result": {"tool": "first_tool"},
+                    },
+                    {
+                        "index": 1,
+                        "tool_name": "failing_tool",
+                        "status": "failed",
+                        "error": "official MCP call failed",
+                    },
+                ],
+            },
         )
 
 

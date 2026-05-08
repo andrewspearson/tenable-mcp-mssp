@@ -21,6 +21,7 @@ class ServerToolRegistrationTests(unittest.IsolatedAsyncioTestCase):
                 "list_mssp_child_accounts",
                 "list_available_tenable_mcp_tools",
                 "run_tenable_mcp_tool_for_child",
+                "run_tenable_mcp_recipe_for_child",
             ],
         )
 

@@ -18,14 +18,23 @@ from simple_mcp.single_child_tenable_mcp import (
 
 mcp = FastMCP(
     name="Tenable MSSP MCP",
-    instructions="List Tenable MSSP child accounts.",
+    instructions=(
+        "Use this MCP server to orchestrate Tenable MSSP child-container work. "
+        "List child accounts first, discover official Tenable MCP tools on one "
+        "child, experiment with one tool on one child, validate known recipes "
+        "on one child, then use multi-child fan-out only after the recipe is "
+        "known to work. Child API keys are generated internally, kept in "
+        "memory only, and never returned by public tools."
+    ),
     version=__version__,
 )
 
 
 @mcp.tool(
     name="list_mssp_child_accounts",
-    description="List Tenable MSSP child accounts.",
+    description=(
+        "List raw Tenable MSSP child account objects, including license data."
+    ),
 )
 def list_mssp_child_accounts() -> list[dict[str, object]]:
     """List Tenable MSSP child accounts."""
@@ -35,7 +44,9 @@ def list_mssp_child_accounts() -> list[dict[str, object]]:
 
 @mcp.tool(
     name="list_available_tenable_mcp_tools",
-    description="List official Tenable MCP tools for a child container.",
+    description=(
+        "Discover official Tenable MCP tools available for one child container."
+    ),
 )
 async def list_available_tenable_mcp_tools(
     child_container_uuid: str,
@@ -47,7 +58,9 @@ async def list_available_tenable_mcp_tools(
 
 @mcp.tool(
     name="run_tenable_mcp_tool_for_child",
-    description="Run an official Tenable MCP tool for a child container.",
+    description=(
+        "Explore by running one official Tenable MCP tool on one child container."
+    ),
 )
 async def run_tenable_mcp_tool_for_child(
     child_container_uuid: str,
@@ -61,7 +74,9 @@ async def run_tenable_mcp_tool_for_child(
 
 @mcp.tool(
     name="run_tenable_mcp_recipe_for_child",
-    description="Run a recipe of official Tenable MCP tools for a child container.",
+    description=(
+        "Validate a known sequence of official Tenable MCP tools on one child."
+    ),
 )
 async def run_tenable_mcp_recipe_for_child(
     child_container_uuid: str,
@@ -74,7 +89,9 @@ async def run_tenable_mcp_recipe_for_child(
 
 @mcp.tool(
     name="run_tenable_mcp_recipe_across_child_containers",
-    description="Run a recipe of official Tenable MCP tools across child containers.",
+    description=(
+        "Run a known working recipe across child containers with controlled fan-out."
+    ),
 )
 async def run_tenable_mcp_recipe_across_child_containers(
     child_container_uuids: list[str],

@@ -9,6 +9,15 @@ In this project we are going to create a very simple MCP server with tools for i
 
 Temporary child API keys are generated internally with the [generate child API keys](https://developer.tenable.com/reference/io-mssp-child-containers-generate-keys) endpoint when a tool needs to call Tenable's hosted MCP server for a child container. Generated child keys must stay in memory only and must not be returned by public MCP tools.
 
+The MCP server is an orchestrator for MSSP child-container work:
+1. Use `list_mssp_child_accounts` to get the raw child account objects, including license data.
+2. Use `list_available_tenable_mcp_tools(child_container_uuid)` to discover the official Tenable MCP tool catalog for one child container.
+3. Use `run_tenable_mcp_tool_for_child(child_container_uuid, tool_name, arguments)` to experiment with one official Tenable MCP tool on one child container.
+4. After a working sequence is known, use `run_tenable_mcp_recipe_for_child(child_container_uuid, recipe)` to validate that recipe on one child.
+5. Use `run_tenable_mcp_recipe_across_child_containers(child_container_uuids, recipe, required_license, max_concurrency)` only after the recipe is known to work, so fan-out is controlled and predictable.
+
+For multi-child fan-out, `required_license` can be a raw Tenable license code such as `vm`, `one`, or `aiv`, or one of the supported capability aliases: `vulnerability_management` or `tenable_one_inventory`.
+
 Here is an example of how to use [pyTenable](https://pytenable.readthedocs.io/en/stable/api/base/platform.html) to:
 1. Authenticate to the Tenable MSSP Portal via API keys.
 2. List all connected child tenants.

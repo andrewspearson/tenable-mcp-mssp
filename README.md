@@ -1,4 +1,4 @@
-# tenable-mcp-mssp
+# Tenable MSSP Portal MCP Server
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 ![Python](https://img.shields.io/badge/python-3.14-blue)
@@ -27,6 +27,8 @@ A FastMCP server for orchestrating Tenable MSSP child container workflows.
 
    ```bash
    git clone https://github.com/andrewspearson/tenable-mcp-mssp.git
+   ```
+   ```bash
    cd tenable-mcp-mssp
    ```
 
@@ -36,6 +38,8 @@ A FastMCP server for orchestrating Tenable MSSP child container workflows.
 
    ```bash
    uv venv
+   ```
+   ```bash
    uv pip install .
    ```
 
@@ -43,7 +47,11 @@ A FastMCP server for orchestrating Tenable MSSP child container workflows.
 
    ```bash
    python3 -m venv .venv
+   ```
+   ```bash
    source .venv/bin/activate
+   ```
+   ```bash
    pip install .
    ```
 
@@ -51,11 +59,16 @@ A FastMCP server for orchestrating Tenable MSSP child container workflows.
 
    ```bash
    cp .env.example .env
-   chmod 600 .env
-   vim .env
    ```
    ```bash
-   TENABLE_MSSP_PORTAL_ACCESS_KEY=replace-with-your-access-key
+   chmod 600 .env
+   ```
+   ```bash
+   vim .env
+   ```
+   .env example:
+   ```text
+   TENABLE_MSSP_PORTAL_ACCESS_KEY=replace-with-your-access-key  
    TENABLE_MSSP_PORTAL_SECRET_KEY=replace-with-your-secret-key
    ```
 
@@ -63,17 +76,14 @@ A FastMCP server for orchestrating Tenable MSSP child container workflows.
 
    [Codex](https://developers.openai.com/codex/mcp#add-an-mcp-server):
    ```bash
-   codex mcp add -h
    codex mcp add tenable-mcp-mssp -- /path/to/tenable-mcp-mssp/.venv/bin/python -m tenable_mcp_mssp.server
    ```
    [Claude](https://code.claude.com/docs/en/mcp#option-3-add-a-local-stdio-server):
    ```bash
-   claude mcp add -h
    claude mcp add tenable-mcp-mssp -- /path/to/tenable-mcp-mssp/.venv/bin/python -m tenable_mcp_mssp.server
    ```
    [Gemini CLI](https://geminicli.com/docs/tools/mcp-server/#adding-a-server-gemini-mcp-add):
    ```bash
-   gemini mcp add -h
    gemini mcp add tenable-mcp-mssp /path/to/tenable-mcp-mssp/.venv/bin/python -m tenable_mcp_mssp.server
    ```
 

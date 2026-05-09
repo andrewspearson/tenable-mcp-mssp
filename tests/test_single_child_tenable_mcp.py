@@ -185,6 +185,46 @@ class SingleChildTenableMcpTests(unittest.IsolatedAsyncioTestCase):
             ],
         )
 
+    async def test_tool_call_logs_child_uuid_and_tool_name_without_data(
+        self,
+    ) -> None:
+        """Tool call logs should include safe identifiers only."""
+
+        credential = ChildCredential(
+            child_container_uuid="child-uuid",
+            access_key="stored-access-key",
+            secret_key="stored-secret-key",
+        )
+
+        async def fake_tool_runner(
+            access_key: str,
+            secret_key: str,
+            tool_name: str,
+            tool_arguments: dict[str, object] | None = None,
+        ) -> object:
+            return {"result": "hidden"}
+
+        with self.assertLogs(
+            "tenable_mcp_mssp.single_child_tenable_mcp",
+            level="INFO",
+        ) as captured_logs:
+            await run_tenable_mcp_tool_for_child(
+                "child-uuid",
+                "asset_list",
+                {"query": "sensitive"},
+                credential_provider=lambda child_uuid: credential,
+                tool_runner=fake_tool_runner,
+                eligibility_checker=lambda child_uuid: None,
+            )
+
+        log_output = "\n".join(captured_logs.output)
+        self.assertIn("child-uuid", log_output)
+        self.assertIn("asset_list", log_output)
+        self.assertNotIn("stored-access-key", log_output)
+        self.assertNotIn("stored-secret-key", log_output)
+        self.assertNotIn("sensitive", log_output)
+        self.assertNotIn("hidden", log_output)
+
     async def test_run_tenable_mcp_recipe_for_child_validates_shape(
         self,
     ) -> None:

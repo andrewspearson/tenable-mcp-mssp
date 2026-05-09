@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from typing import Any
 
@@ -11,6 +12,7 @@ from fastmcp.client import StreamableHttpTransport
 
 TENABLE_MCP_URL = "https://cloud.tenable.com/mcp/"
 API_KEYS_HEADER_NAME = "X-ApiKeys"
+logger = logging.getLogger(__name__)
 
 
 class TenableMcpClientError(RuntimeError):
@@ -50,6 +52,7 @@ async def list_tenable_mcp_tools(
         async with client_factory(access_key, secret_key) as client:
             tools = await client.list_tools()
     except Exception as exc:
+        logger.warning("Failed to list Tenable Hexa AI MCP tools.")
         raise TenableMcpClientError("Failed to list Tenable MCP tools.") from exc
 
     return [_normalize_tool(tool) for tool in tools]
@@ -78,6 +81,7 @@ async def call_tenable_mcp_tool(
         async with client_factory(access_key, secret_key) as client:
             return await client.call_tool(clean_tool_name, tool_arguments)
     except Exception as exc:
+        logger.warning("Failed to call Tenable Hexa AI MCP tool %s.", clean_tool_name)
         raise TenableMcpClientError(
             f"Failed to call Tenable MCP tool: {clean_tool_name}."
         ) from exc

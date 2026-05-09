@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -14,6 +15,7 @@ MSSP_PORTAL_ACCESS_KEY_ENV = "TENABLE_MSSP_PORTAL_ACCESS_KEY"
 MSSP_PORTAL_SECRET_KEY_ENV = "TENABLE_MSSP_PORTAL_SECRET_KEY"
 INTEGRATION_VENDOR = "github.com/andrewspearson"
 INTEGRATION_PRODUCT = "tenable-mcp-mssp"
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,4 +89,6 @@ def get_settings() -> Settings:
             f"Missing required environment variables: {missing_vars}"
         )
 
-    return Settings(**values)
+    settings = Settings(**values)
+    logger.info("Loaded Tenable MCP MSSP configuration.")
+    return settings

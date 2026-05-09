@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
+
 from fastmcp import Context, FastMCP
 
 from tenable_mcp_mssp import __version__
+from tenable_mcp_mssp.logging_config import configure_logging
 from tenable_mcp_mssp.mssp_accounts import list_child_accounts
 from tenable_mcp_mssp.multi_child_tenable_mcp import (
     run_tenable_mcp_recipe_across_child_containers as run_recipe_across_children,
@@ -15,6 +18,8 @@ from tenable_mcp_mssp.single_child_tenable_mcp import (
     run_tenable_mcp_tool_for_child as run_tool_for_child,
 )
 
+
+logger = logging.getLogger(__name__)
 
 mcp = FastMCP(
     name="Tenable MSSP MCP",
@@ -119,6 +124,8 @@ async def run_tenable_mcp_recipe_across_child_containers(
 def main() -> None:
     """Run the MCP server."""
 
+    configure_logging()
+    logger.info("Starting Tenable MCP MSSP server version %s.", __version__)
     mcp.run()
 
 

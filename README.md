@@ -68,8 +68,10 @@ A FastMCP server for orchestrating Tenable MSSP child container workflows.
    ```
    .env example:
    ```text
-   TENABLE_MSSP_PORTAL_ACCESS_KEY=replace-with-your-access-key  
+   TENABLE_MSSP_PORTAL_ACCESS_KEY=replace-with-your-access-key
    TENABLE_MSSP_PORTAL_SECRET_KEY=replace-with-your-secret-key
+   # Optional: DEBUG, INFO, WARNING, ERROR, or CRITICAL
+   # TENABLE_MCP_MSSP_LOG_LEVEL=WARNING
    ```
 
 4. **Attach Codex / Claude / Gemini CLI / etc. to tenable-mcp-mssp as a STDIO server:**
@@ -86,6 +88,12 @@ A FastMCP server for orchestrating Tenable MSSP child container workflows.
    ```bash
    gemini mcp add tenable-mcp-mssp /path/to/tenable-mcp-mssp/.venv/bin/python -m tenable_mcp_mssp.server
    ```
+
+## Logging
+Set `TENABLE_MCP_MSSP_LOG_LEVEL` to `DEBUG`, `INFO`, `WARNING`, `ERROR`, or `CRITICAL`. All logs are sent to `stderr`.
+```bash
+codex mcp add --env TENABLE_MCP_MSSP_LOG_LEVEL=DEBUG tenable-mcp-mssp -- /bin/sh -c 'exec /path/to/tenable-mcp-mssp/.venv/bin/python -m tenable_mcp_mssp.server 2>> /path/to/logs/tenable-mcp-mssp.log'
+```
 
 ## Available Tools
 

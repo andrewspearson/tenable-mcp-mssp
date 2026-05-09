@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from tenable.io import TenableIO
@@ -11,6 +12,7 @@ from tenable_mcp_mssp.tenable_client import create_tenable_client
 
 ACCOUNT_LIST_PATH = "mssp/accounts"
 ACCOUNT_LIST_HEADERS = {"Content-Type": "application/json"}
+logger = logging.getLogger(__name__)
 
 
 class AccountListingError(RuntimeError):
@@ -21,6 +23,7 @@ def list_child_accounts(client: TenableIO | None = None) -> list[dict[str, Any]]
     """List child accounts connected to the Tenable MSSP Portal."""
 
     current_client = client or create_tenable_client()
+    logger.info("Listing MSSP child accounts.")
 
     try:
         response = current_client.get(
@@ -29,9 +32,12 @@ def list_child_accounts(client: TenableIO | None = None) -> list[dict[str, Any]]
         )
         payload = response.json()
     except Exception as exc:
+        logger.warning("Failed to retrieve MSSP child accounts.")
         raise AccountListingError("Failed to retrieve MSSP child accounts.") from exc
 
-    return parse_child_accounts(payload)
+    accounts = parse_child_accounts(payload)
+    logger.info("Retrieved %d MSSP child accounts.", len(accounts))
+    return accounts
 
 
 def parse_child_accounts(payload: Any) -> list[dict[str, Any]]:

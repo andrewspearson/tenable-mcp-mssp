@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from typing import Any
 
@@ -14,6 +15,9 @@ from tenable_mcp_mssp.tenable_mcp_client import (
     call_tenable_mcp_tool,
     list_tenable_mcp_tools,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 class TenableMcpRecipeError(ValueError):
@@ -30,12 +34,30 @@ async def list_available_tenable_mcp_tools(
 ) -> list[dict[str, Any]]:
     """List official Tenable MCP tools available to a child container."""
 
+    logger.info(
+        "Listing Tenable Hexa AI MCP tools for child %s.",
+        child_container_uuid,
+    )
     eligibility_checker(child_container_uuid)
     credential = credential_provider(child_container_uuid)
-    return await tool_lister(
-        credential.access_key,
-        credential.secret_key,
+    try:
+        tools = await tool_lister(
+            credential.access_key,
+            credential.secret_key,
+        )
+    except Exception:
+        logger.warning(
+            "Failed to list Tenable Hexa AI MCP tools for child %s.",
+            child_container_uuid,
+        )
+        raise
+
+    logger.info(
+        "Listed %d Tenable Hexa AI MCP tools for child %s.",
+        len(tools),
+        child_container_uuid,
     )
+    return tools
 
 
 async def run_tenable_mcp_tool_for_child(
@@ -52,14 +74,34 @@ async def run_tenable_mcp_tool_for_child(
 ) -> object:
     """Run an official Tenable MCP tool for a child container."""
 
+    logger.info(
+        "Calling Tenable Hexa AI MCP tool %s for child %s.",
+        tool_name,
+        child_container_uuid,
+    )
     eligibility_checker(child_container_uuid)
     credential = credential_provider(child_container_uuid)
-    return await tool_runner(
-        credential.access_key,
-        credential.secret_key,
+    try:
+        result = await tool_runner(
+            credential.access_key,
+            credential.secret_key,
+            tool_name,
+            arguments,
+        )
+    except Exception:
+        logger.warning(
+            "Failed to call Tenable Hexa AI MCP tool %s for child %s.",
+            tool_name,
+            child_container_uuid,
+        )
+        raise
+
+    logger.info(
+        "Called Tenable Hexa AI MCP tool %s for child %s.",
         tool_name,
-        arguments,
+        child_container_uuid,
     )
+    return result
 
 
 async def run_tenable_mcp_recipe_for_child(
@@ -71,6 +113,11 @@ async def run_tenable_mcp_recipe_for_child(
     """Run a recipe of official Tenable MCP tools for a child container."""
 
     validated_recipe = _validate_recipe(recipe)
+    logger.info(
+        "Running Tenable Hexa AI MCP recipe with %d steps for child %s.",
+        len(validated_recipe),
+        child_container_uuid,
+    )
     eligibility_checker(child_container_uuid)
     current_step_runner = step_runner or (
         lambda tool_name, arguments: run_tenable_mcp_tool_for_child(
@@ -89,6 +136,12 @@ async def run_tenable_mcp_recipe_for_child(
         try:
             result = await current_step_runner(tool_name, arguments)
         except Exception as exc:
+            logger.warning(
+                "Failed Tenable Hexa AI MCP recipe step %d tool %s for child %s.",
+                index,
+                tool_name,
+                child_container_uuid,
+            )
             steps.append(
                 {
                     "index": index,
@@ -104,6 +157,12 @@ async def run_tenable_mcp_recipe_for_child(
                 "steps": steps,
             }
 
+        logger.info(
+            "Completed Tenable Hexa AI MCP recipe step %d tool %s for child %s.",
+            index,
+            tool_name,
+            child_container_uuid,
+        )
         steps.append(
             {
                 "index": index,
@@ -113,6 +172,10 @@ async def run_tenable_mcp_recipe_for_child(
             }
         )
 
+    logger.info(
+        "Completed Tenable Hexa AI MCP recipe for child %s.",
+        child_container_uuid,
+    )
     return {
         "child_container_uuid": child_container_uuid,
         "status": "succeeded",

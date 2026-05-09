@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from tenable.io import TenableIO
@@ -12,6 +13,7 @@ from tenable_mcp_mssp.tenable_client import create_tenable_client
 CHILD_KEYS_PATH = "mssp/accounts/mssp-child-keys"
 CHILD_KEYS_HEADERS = {"Content-Type": "application/json"}
 MAX_KEYS_VALIDITY_SECONDS = 3600
+logger = logging.getLogger(__name__)
 
 
 class ChildApiKeyGenerationError(RuntimeError):
@@ -30,6 +32,8 @@ def generate_child_api_keys(
         keys_validity_duration_seconds,
     )
     current_client = client or create_tenable_client()
+    child_uuid = request_body["child_container_uuid"]
+    logger.info("Generating child API keys for child %s.", child_uuid)
 
     try:
         response = current_client.post(
@@ -39,11 +43,14 @@ def generate_child_api_keys(
         )
         payload = response.json() if hasattr(response, "json") else response
     except Exception as exc:
+        logger.warning("Failed to generate child API keys for child %s.", child_uuid)
         raise ChildApiKeyGenerationError(
             "Failed to generate child API keys."
         ) from exc
 
-    return parse_child_api_key_response(payload)
+    parsed_payload = parse_child_api_key_response(payload)
+    logger.info("Generated child API keys for child %s.", child_uuid)
+    return parsed_payload
 
 
 def build_child_key_request_body(

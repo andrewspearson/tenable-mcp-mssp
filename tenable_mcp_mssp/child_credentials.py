@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -10,6 +11,7 @@ from tenable_mcp_mssp.child_api_keys import generate_child_api_keys
 
 
 SECRET_FIELDS = {"access_key", "secret_key"}
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,9 +94,14 @@ class ChildCredentialStore:
         )
 
         if credential.is_expired(self._now()):
+            logger.warning(
+                "Rejected expired child credentials for child %s.",
+                child_container_uuid,
+            )
             raise ChildCredentialStoreError("Child credentials are expired.")
 
         self._credentials[child_container_uuid] = credential
+        logger.info("Stored child credentials for child %s.", child_container_uuid)
         return credential
 
     def get(self, child_container_uuid: str) -> ChildCredential:
@@ -113,8 +120,10 @@ class ChildCredentialStore:
 
         if credential.is_expired(self._now()):
             self.remove(clean_uuid)
+            logger.info("Removed expired child credentials for child %s.", clean_uuid)
             raise ChildCredentialStoreError("Stored child credentials expired.")
 
+        logger.info("Reusing stored child credentials for child %s.", clean_uuid)
         return credential
 
     def remove(self, child_container_uuid: str) -> None:
@@ -171,6 +180,10 @@ def get_or_generate_child_credentials(
     try:
         return store.get(child_container_uuid)
     except ChildCredentialStoreError:
+        logger.info(
+            "Generating fresh child credentials for child %s.",
+            child_container_uuid,
+        )
         response = key_generator(child_container_uuid)
         return store.store(response)
 

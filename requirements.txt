@@ -1,2 +1,0 @@
-fastmcp>=3.2.4
-pyTenable>=1.9.1

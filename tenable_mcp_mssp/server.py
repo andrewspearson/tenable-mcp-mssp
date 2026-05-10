@@ -119,7 +119,6 @@ async def run_tenable_mcp_recipe_for_child(
 async def run_tenable_mcp_recipe_across_child_containers(
     child_container_uuids: list[str],
     recipe: list[dict[str, object]],
-    required_license: str | None = None,
     ctx: Context | None = None,
 ) -> dict[str, object]:
     """Run a recipe of official Tenable MCP tools across child containers."""
@@ -134,7 +133,6 @@ async def run_tenable_mcp_recipe_across_child_containers(
     return await run_recipe_across_children(
         child_container_uuids,
         recipe,
-        required_license,
         progress_reporter=report_progress,
     )
 

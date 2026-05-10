@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
-from tenable_mcp_mssp.server import mcp
+from tenable_mcp_mssp import server
+
+
+mcp = server.mcp
 
 
 class ServerToolRegistrationTests(unittest.IsolatedAsyncioTestCase):
@@ -44,10 +48,39 @@ class ServerToolRegistrationTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIn("child_container_uuids", properties)
         self.assertIn("recipe", properties)
-        self.assertIn("required_license", properties)
+        self.assertNotIn("required_license", properties)
         self.assertNotIn("ctx", properties)
         self.assertNotIn("max_concurrency", properties)
         self.assertNotIn("child_timeout_seconds", properties)
+
+    async def test_public_multi_child_runner_does_not_pass_license_filter(
+        self,
+    ) -> None:
+        """The public wrapper should not let agents supply license filters."""
+
+        async def fake_runner(
+            child_container_uuids: list[str],
+            recipe: list[dict[str, object]],
+            **kwargs: object,
+        ) -> dict[str, object]:
+            self.assertEqual(child_container_uuids, ["child-1"])
+            self.assertEqual(recipe, [{"tool_name": "tool"}])
+            self.assertNotIn("required_license", kwargs)
+            return {
+                "queued": 1,
+                "succeeded": 1,
+                "failed": 0,
+                "skipped": 0,
+                "children": [],
+            }
+
+        with patch.object(server, "run_recipe_across_children", fake_runner):
+            result = await server.run_tenable_mcp_recipe_across_child_containers(
+                ["child-1"],
+                [{"tool_name": "tool"}],
+            )
+
+        self.assertEqual(result["succeeded"], 1)
 
 
 if __name__ == "__main__":

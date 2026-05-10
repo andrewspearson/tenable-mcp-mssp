@@ -324,6 +324,7 @@ class BulkVmCveQueryArtifactTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             raw_a = Path(tmpdir) / "a.jsonl"
             raw_b = Path(tmpdir) / "b.jsonl"
+            raw_c = Path(tmpdir) / "c.jsonl"
             aggregate_csv = Path(tmpdir) / "aggregate.csv"
             raw_a.write_text(
                 json.dumps(sample_finding("zeta", "finding-a")) + "\n",
@@ -331,6 +332,10 @@ class BulkVmCveQueryArtifactTests(unittest.TestCase):
             )
             raw_b.write_text(
                 json.dumps(sample_finding("alpha", "finding-b")) + "\n",
+                encoding="utf-8",
+            )
+            raw_c.write_text(
+                json.dumps(sample_finding("bravo", "finding-c")) + "\n",
                 encoding="utf-8",
             )
             total = aggregate_bulk_query_results(
@@ -341,6 +346,14 @@ class BulkVmCveQueryArtifactTests(unittest.TestCase):
                         "result": {
                             "raw_file_path": str(raw_a),
                             "child_container_name": "Zulu",
+                        },
+                    },
+                    {
+                        "child_container_uuid": "child-b",
+                        "status": "succeeded",
+                        "result": {
+                            "raw_file_path": str(raw_c),
+                            "child_container_name": "Alpha",
                         },
                     },
                     {
@@ -358,14 +371,18 @@ class BulkVmCveQueryArtifactTests(unittest.TestCase):
             with aggregate_csv.open("r", encoding="utf-8", newline="") as file:
                 rows = list(csv.DictReader(file))
 
-        self.assertEqual(total, 2)
+        self.assertEqual(total, 3)
         self.assertEqual(rows[0]["child_container_name"], "Alpha")
+        self.assertEqual(rows[0]["child_container_uuid"], "child-a")
         self.assertEqual(rows[0]["asset_name"], "alpha")
         self.assertEqual(rows[0]["plugin_id"], "12345")
         self.assertEqual(rows[0]["finding_id"], "finding-b")
         self.assertEqual(rows[0]["cves"], "CVE-2021-44228;CVE-2021-45046")
         self.assertEqual(rows[0]["cvss_v4_base_score"], "")
-        self.assertEqual(rows[1]["child_container_name"], "Zulu")
+        self.assertEqual(rows[1]["child_container_name"], "Alpha")
+        self.assertEqual(rows[1]["child_container_uuid"], "child-b")
+        self.assertEqual(rows[1]["asset_name"], "bravo")
+        self.assertEqual(rows[2]["child_container_name"], "Zulu")
 
     def test_missing_nested_fields_become_blank_csv_values(self) -> None:
         """Missing nested export data should become blank CSV fields."""

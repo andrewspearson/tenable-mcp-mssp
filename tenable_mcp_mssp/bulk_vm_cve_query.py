@@ -487,6 +487,7 @@ def aggregate_bulk_query_results(
     rows.sort(
         key=lambda row: (
             str(row["child_container_name"]).casefold(),
+            str(row["child_container_uuid"]).casefold(),
             str(row["asset_name"]).casefold(),
         )
     )

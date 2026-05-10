@@ -2,30 +2,18 @@
 
 from __future__ import annotations
 
-import asyncio
-import logging
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable
 from typing import Any
 
-from tenable_mcp_mssp.account_capabilities import (
-    has_license,
-    supports_tenable_one_inventory,
-    supports_vulnerability_management,
-)
-from tenable_mcp_mssp.child_account_eligibility import (
-    build_child_account_lookup,
-    child_account_ineligible_reason,
+from tenable_mcp_mssp.child_fanout import (
+    DEFAULT_CHILD_TIMEOUT_SECONDS,
+    DEFAULT_MAX_CONCURRENCY,
+    ChildFanoutError,
+    ProgressReporter,
+    run_child_fanout,
 )
 from tenable_mcp_mssp.mssp_accounts import list_child_accounts
 from tenable_mcp_mssp.single_child_tenable_mcp import run_tenable_mcp_recipe_for_child
-
-
-DEFAULT_MAX_CONCURRENCY = 10
-DEFAULT_CHILD_TIMEOUT_SECONDS = 300
-VULNERABILITY_MANAGEMENT_ALIAS = "vulnerability_management"
-TENABLE_ONE_INVENTORY_ALIAS = "tenable_one_inventory"
-ProgressReporter = Callable[[int, int, str], Awaitable[None]]
-logger = logging.getLogger(__name__)
 
 
 class MultiChildRecipeError(ValueError):
@@ -47,297 +35,23 @@ async def run_tenable_mcp_recipe_across_child_containers(
 ) -> dict[str, object]:
     """Run a Tenable MCP recipe across multiple child containers."""
 
-    validated_child_uuids = _validate_child_container_uuids(child_container_uuids)
-    validated_max_concurrency = _validate_max_concurrency(max_concurrency)
-    validated_child_timeout = _validate_child_timeout(child_timeout_seconds)
-    license_requirement = _normalize_required_license(required_license)
-    account_lookup = build_child_account_lookup(account_lister)
-    semaphore = asyncio.Semaphore(validated_max_concurrency)
-    total_children = len(validated_child_uuids)
-    completed_children = 0
-    progress_lock = asyncio.Lock()
+    async def child_worker(
+        child_container_uuid: str,
+        account: object,
+    ) -> dict[str, object]:
+        return await recipe_runner(child_container_uuid, recipe)
 
-    async def report_progress(done: int, message: str) -> None:
-        if progress_reporter is not None:
-            await progress_reporter(done, total_children, message)
-
-    async def mark_child_done(message: str) -> None:
-        nonlocal completed_children
-        async with progress_lock:
-            completed_children += 1
-            done = completed_children
-
-        await report_progress(done, message)
-
-    await report_progress(
-        0,
-        f"Batch started: {total_children} requested child containers.",
-    )
-    logger.info(
-        "Started multi-child recipe batch for %d requested children.",
-        total_children,
-    )
-
-    async def run_one(child_container_uuid: str) -> dict[str, object]:
-        active_skip_reason = child_account_ineligible_reason(
-            child_container_uuid,
-            account_lookup,
+    try:
+        return await run_child_fanout(
+            child_container_uuids,
+            child_worker,
+            required_license=required_license,
+            max_concurrency=max_concurrency,
+            child_timeout_seconds=child_timeout_seconds,
+            account_lister=account_lister,
+            progress_reporter=progress_reporter,
+            operation_name="recipe",
+            timeout_error_label="child recipe",
         )
-        if active_skip_reason:
-            logger.info(
-                "Skipped child %s before recipe run: %s.",
-                child_container_uuid,
-                active_skip_reason,
-            )
-            await mark_child_done(
-                f"Batch skipped: child {child_container_uuid}: "
-                f"{active_skip_reason}."
-            )
-            return {
-                "child_container_uuid": child_container_uuid,
-                "status": "skipped",
-                "reason": active_skip_reason,
-            }
-
-        if license_requirement:
-            skip_reason = _license_skip_reason(
-                child_container_uuid,
-                account_lookup,
-                license_requirement,
-            )
-            if skip_reason:
-                logger.info(
-                    "Skipped child %s before recipe run: %s.",
-                    child_container_uuid,
-                    skip_reason,
-                )
-                await mark_child_done(
-                    f"Batch skipped: child {child_container_uuid}: "
-                    f"{skip_reason}."
-                )
-                return {
-                    "child_container_uuid": child_container_uuid,
-                    "status": "skipped",
-                    "reason": skip_reason,
-                }
-
-        async with semaphore:
-            logger.info("Running recipe for child %s.", child_container_uuid)
-            await report_progress(
-                completed_children,
-                f"Batch running: child {child_container_uuid}.",
-            )
-            try:
-                result = await _run_recipe_with_timeout(
-                    recipe_runner(child_container_uuid, recipe),
-                    validated_child_timeout,
-                )
-            except TimeoutError:
-                logger.warning(
-                    "Timed out recipe for child %s after %s seconds.",
-                    child_container_uuid,
-                    validated_child_timeout,
-                )
-                await mark_child_done(
-                    f"Batch completed child {child_container_uuid}: failed."
-                )
-                return {
-                    "child_container_uuid": child_container_uuid,
-                    "status": "failed",
-                    "error": (
-                        "child recipe timed out after "
-                        f"{validated_child_timeout} seconds"
-                    ),
-                }
-            except Exception as exc:
-                logger.warning("Failed recipe for child %s.", child_container_uuid)
-                await mark_child_done(
-                    f"Batch completed child {child_container_uuid}: failed."
-                )
-                return {
-                    "child_container_uuid": child_container_uuid,
-                    "status": "failed",
-                    "error": str(exc),
-                }
-
-        if not isinstance(result, dict):
-            logger.warning(
-                "Recipe for child %s returned an invalid report.",
-                child_container_uuid,
-            )
-            await mark_child_done(
-                f"Batch completed child {child_container_uuid}: failed."
-            )
-            return {
-                "child_container_uuid": child_container_uuid,
-                "status": "failed",
-                "error": "Recipe runner returned an invalid report.",
-            }
-
-        status = result.get("status")
-        if status not in {"succeeded", "failed"}:
-            logger.warning(
-                "Recipe for child %s returned an invalid status.",
-                child_container_uuid,
-            )
-            await mark_child_done(
-                f"Batch completed child {child_container_uuid}: failed."
-            )
-            return {
-                "child_container_uuid": child_container_uuid,
-                "status": "failed",
-                "error": "Recipe runner returned an invalid status.",
-            }
-
-        logger.info(
-            "Completed recipe for child %s with status %s.",
-            child_container_uuid,
-            status,
-        )
-        await mark_child_done(
-            f"Batch completed child {child_container_uuid}: {status}."
-        )
-        return {
-            "child_container_uuid": child_container_uuid,
-            "status": status,
-            "result": result,
-        }
-
-    children = await asyncio.gather(
-        *(run_one(child_uuid) for child_uuid in validated_child_uuids)
-    )
-
-    succeeded = _count_status(children, "succeeded")
-    failed = _count_status(children, "failed")
-    skipped = _count_status(children, "skipped")
-    await report_progress(
-        total_children,
-        (
-            "Batch complete: "
-            f"{succeeded} succeeded, {failed} failed, {skipped} skipped."
-        ),
-    )
-    logger.info(
-        "Completed multi-child recipe batch: %d succeeded, %d failed, %d skipped.",
-        succeeded,
-        failed,
-        skipped,
-    )
-
-    return {
-        "queued": len(validated_child_uuids),
-        "succeeded": succeeded,
-        "failed": failed,
-        "skipped": skipped,
-        "children": children,
-    }
-
-
-def _validate_child_container_uuids(child_container_uuids: Any) -> list[str]:
-    """Validate and normalize child container UUID input."""
-
-    if not isinstance(child_container_uuids, list) or not child_container_uuids:
-        raise MultiChildRecipeError(
-            "child_container_uuids must be a non-empty list."
-        )
-
-    validated_child_uuids: list[str] = []
-    for index, child_uuid in enumerate(child_container_uuids):
-        if not isinstance(child_uuid, str) or not child_uuid.strip():
-            raise MultiChildRecipeError(
-                f"child_container_uuids item {index} must be a non-empty string."
-            )
-        validated_child_uuids.append(child_uuid.strip())
-
-    return validated_child_uuids
-
-
-def _validate_max_concurrency(max_concurrency: Any) -> int:
-    """Validate max concurrency input."""
-
-    if not isinstance(max_concurrency, int) or max_concurrency < 1:
-        raise MultiChildRecipeError("max_concurrency must be a positive integer.")
-
-    return max_concurrency
-
-
-def _validate_child_timeout(child_timeout_seconds: Any) -> int | None:
-    """Validate per-child timeout input."""
-
-    if child_timeout_seconds is None:
-        return None
-
-    if (
-        not isinstance(child_timeout_seconds, int)
-        or isinstance(child_timeout_seconds, bool)
-        or child_timeout_seconds < 1
-    ):
-        raise MultiChildRecipeError(
-            "child_timeout_seconds must be a positive integer or None."
-        )
-
-    return child_timeout_seconds
-
-
-async def _run_recipe_with_timeout(
-    recipe_run: Awaitable[dict[str, object]],
-    child_timeout_seconds: int | None,
-) -> dict[str, object]:
-    """Run one child recipe with an optional timeout."""
-
-    if child_timeout_seconds is None:
-        return await recipe_run
-
-    return await asyncio.wait_for(recipe_run, timeout=child_timeout_seconds)
-
-
-def _normalize_required_license(required_license: str | None) -> str | None:
-    """Normalize the optional license/capability gate."""
-
-    if required_license is None:
-        return None
-
-    if not isinstance(required_license, str) or not required_license.strip():
-        raise MultiChildRecipeError(
-            "required_license must be a non-empty string when provided."
-        )
-
-    return required_license.strip().casefold()
-
-
-def _license_skip_reason(
-    child_container_uuid: str,
-    account_lookup: Mapping[str, Mapping[str, Any]],
-    required_license: str,
-) -> str | None:
-    """Return a skip reason when a child does not meet a license gate."""
-
-    account = account_lookup.get(child_container_uuid)
-    if account is None:
-        return "child account not found for required license check"
-
-    if _account_has_required_license(account, required_license):
-        return None
-
-    return f"missing required license: {required_license}"
-
-
-def _account_has_required_license(
-    account: Mapping[str, Any],
-    required_license: str,
-) -> bool:
-    """Return whether an account satisfies the license/capability gate."""
-
-    if required_license == VULNERABILITY_MANAGEMENT_ALIAS:
-        return supports_vulnerability_management(account)
-
-    if required_license == TENABLE_ONE_INVENTORY_ALIAS:
-        return supports_tenable_one_inventory(account)
-
-    return has_license(account, required_license)
-
-
-def _count_status(children: list[dict[str, object]], status: str) -> int:
-    """Count child reports with the requested status."""
-
-    return sum(child.get("status") == status for child in children)
+    except ChildFanoutError as exc:
+        raise MultiChildRecipeError(str(exc)) from exc

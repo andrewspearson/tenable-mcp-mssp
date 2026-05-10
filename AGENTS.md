@@ -18,10 +18,12 @@ The MCP server is an orchestrator for MSSP child-container work:
 4. Use `run_tenable_mcp_tool_for_child(child_container_uuid, tool_name, arguments)` to experiment with one official Tenable MCP tool on one child container.
 5. After a working sequence is known, use `run_tenable_mcp_recipe_for_child(child_container_uuid, recipe)` to validate that recipe on one child.
 6. Use `run_tenable_mcp_recipe_across_child_containers(child_container_uuids, recipe, required_license)` only after the recipe is known to work, so fan-out is controlled and predictable.
+7. Use `bulk_vm_cve_query(cve_ids)` only when the user explicitly asks for the `bulk_vm_cve_query` tool by name. This curated tool bypasses the official Tenable MCP server and uses pyTenable VM exports directly.
 
 For multi-child fan-out, `required_license` can be a raw Tenable license code such as `vm`, `one`, or `aiv`, or one of the supported capability aliases: `vulnerability_management` or `tenable_one_inventory`.
 Multi-child fan-out uses hard-coded operational safety limits: concurrency is fixed at 10 child containers, and each child recipe run times out after 300 seconds.
 Multi-child fan-out emits batch-scoped progress messages. Treat these as observability for the current MCP call, not as durable job state.
+Bulk VM CVE queries use the same child-container fan-out controls and hard exclusions, require a `vm` license, write local artifacts under `results/bulk-vm-cve-query/<timestamp>/`, and must not return raw findings or secrets through MCP.
 
 Here is an example of how to use [pyTenable](https://pytenable.readthedocs.io/en/stable/api/base/platform.html) to:
 1. Authenticate to the Tenable MSSP Portal via API keys.

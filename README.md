@@ -14,6 +14,7 @@ A FastMCP server for orchestrating Tenable MSSP child container workflows.
 - Run one [Tenable Hexa AI MCP Server](https://docs.tenable.com/early-access/vulnerability-management/Content/getting-started/hexa-AI-MCP.htm) tool against one child container for exploration.
 - Validate a known recipe of [Tenable Hexa AI MCP Server](https://docs.tenable.com/early-access/vulnerability-management/Content/getting-started/hexa-AI-MCP.htm) tool calls on one child container.
 - Run a known recipe across multiple child containers with eligibility checks, fixed concurrency, per-child timeouts, and batch progress messages.
+- Run an explicitly requested curated bulk VM CVE query that writes local JSONL and CSV artifacts.
 
 ## Prerequisites
 
@@ -119,6 +120,7 @@ codex mcp add --env TENABLE_MCP_MSSP_LOG_LEVEL=DEBUG tenable-mcp-mssp -- /bin/sh
 - `run_tenable_mcp_tool_for_child`: Run one [Tenable Hexa AI MCP Server](https://docs.tenable.com/early-access/vulnerability-management/Content/getting-started/hexa-AI-MCP.htm) tool on one child container for exploration.
 - `run_tenable_mcp_recipe_for_child`: Validate a known sequence of [Tenable Hexa AI MCP Server](https://docs.tenable.com/early-access/vulnerability-management/Content/getting-started/hexa-AI-MCP.htm) tool calls on one child container.
 - `run_tenable_mcp_recipe_across_child_containers`: Run a known working recipe across multiple child containers with controlled fan-out.
+- `bulk_vm_cve_query`: Run a curated direct pyTenable VM export for CVEs across eligible child containers. This tool should be used only when explicitly requested by name.
 
 Recommended workflow:
 
@@ -127,3 +129,5 @@ Recommended workflow:
 3. Experiment with single-tool calls on one child container.
 4. Validate a known recipe on one child container.
 5. Fan out the validated recipe across child containers.
+
+The `bulk_vm_cve_query` tool is separate from the standard Hexa AI MCP workflow. It accepts only a CVE list, derives eligible VM child containers internally, honors the configured child container scope and exclusions, writes raw JSONL exports plus an aggregate CSV under `results/bulk-vm-cve-query/<timestamp>/`, and returns only summary metadata with file paths.

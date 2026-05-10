@@ -24,6 +24,7 @@ class ServerToolRegistrationTests(unittest.IsolatedAsyncioTestCase):
                 "run_tenable_mcp_tool_for_child",
                 "run_tenable_mcp_recipe_for_child",
                 "run_tenable_mcp_recipe_across_child_containers",
+                "bulk_vm_cve_query",
             ],
         )
 

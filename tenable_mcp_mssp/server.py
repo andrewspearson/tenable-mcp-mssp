@@ -7,6 +7,7 @@ import logging
 from fastmcp import Context, FastMCP
 
 from tenable_mcp_mssp import __version__
+from tenable_mcp_mssp.bulk_vm_cve_query import bulk_vm_cve_query as run_bulk_vm_cve_query
 from tenable_mcp_mssp.child_container_scope import (
     get_child_container_scope as get_scope_report,
     load_child_container_scope,
@@ -134,6 +135,32 @@ async def run_tenable_mcp_recipe_across_child_containers(
         child_container_uuids,
         recipe,
         required_license,
+        progress_reporter=report_progress,
+    )
+
+
+@mcp.tool(
+    name="bulk_vm_cve_query",
+    description=(
+        "Curated bulk VM CVE export across eligible child containers. "
+        "Use only when the user explicitly asks for bulk_vm_cve_query."
+    ),
+)
+async def bulk_vm_cve_query(
+    cve_ids: list[str],
+    ctx: Context | None = None,
+) -> dict[str, object]:
+    """Run a curated bulk VM CVE query across eligible child containers."""
+
+    async def report_progress(done: int, total: int, message: str) -> None:
+        if ctx is None:
+            return
+
+        await ctx.info(message)
+        await ctx.report_progress(done, total, message)
+
+    return await run_bulk_vm_cve_query(
+        cve_ids,
         progress_reporter=report_progress,
     )
 

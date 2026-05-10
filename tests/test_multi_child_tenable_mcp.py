@@ -565,8 +565,10 @@ class MultiChildTenableMcpTests(unittest.IsolatedAsyncioTestCase):
             recipe_run: object,
             timeout: int,
         ) -> dict[str, object]:
-            child_uuid = recipe_run.cr_frame.f_locals[  # type: ignore[attr-defined]
+            child_uuid = recipe_run.cr_frame.f_locals.get(  # type: ignore[attr-defined]
                 "child_uuid"
+            ) or recipe_run.cr_frame.f_locals[  # type: ignore[attr-defined]
+                "child_container_uuid"
             ]
             if child_uuid == "child-hangs":
                 recipe_run.close()  # type: ignore[attr-defined]
@@ -574,7 +576,7 @@ class MultiChildTenableMcpTests(unittest.IsolatedAsyncioTestCase):
             return await recipe_run  # type: ignore[misc]
 
         with patch(
-            "tenable_mcp_mssp.multi_child_tenable_mcp.asyncio.wait_for",
+            "tenable_mcp_mssp.child_fanout.asyncio.wait_for",
             side_effect=fake_wait_for,
         ):
             result = await run_tenable_mcp_recipe_across_child_containers(
@@ -608,7 +610,7 @@ class MultiChildTenableMcpTests(unittest.IsolatedAsyncioTestCase):
             }
 
         with patch(
-            "tenable_mcp_mssp.multi_child_tenable_mcp.asyncio.wait_for",
+            "tenable_mcp_mssp.child_fanout.asyncio.wait_for",
             side_effect=AssertionError("wait_for should not be called"),
         ):
             result = await run_tenable_mcp_recipe_across_child_containers(

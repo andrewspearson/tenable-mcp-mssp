@@ -291,6 +291,46 @@ class MultiChildTenableMcpTests(unittest.IsolatedAsyncioTestCase):
             "child account not found for active license check",
         )
 
+    async def test_out_of_scope_child_is_skipped_without_recipe_run(self) -> None:
+        """Children outside configured scope should be skipped before recipes."""
+
+        calls: list[str] = []
+
+        async def fake_recipe_runner(
+            child_uuid: str,
+            recipe: list[dict[str, object]],
+        ) -> dict[str, object]:
+            calls.append(child_uuid)
+            return {
+                "child_container_uuid": child_uuid,
+                "status": "succeeded",
+                "steps": [],
+            }
+
+        with patch(
+            "tenable_mcp_mssp.child_account_eligibility."
+            "is_child_container_in_scope",
+            side_effect=lambda child_uuid: child_uuid == "child-allowed",
+        ):
+            result = await run_tenable_mcp_recipe_across_child_containers(
+                ["child-allowed", "child-denied"],
+                [{"tool_name": "asset_list"}],
+                recipe_runner=fake_recipe_runner,
+                account_lister=active_account_lister(
+                    "child-allowed",
+                    "child-denied",
+                ),
+            )
+
+        self.assertEqual(calls, ["child-allowed"])
+        self.assertEqual(result["succeeded"], 1)
+        self.assertEqual(result["skipped"], 1)
+        self.assertEqual(result["children"][1]["status"], "skipped")
+        self.assertEqual(
+            result["children"][1]["reason"],
+            "child account is not in configured child container scope",
+        )
+
     async def test_expired_child_is_skipped_without_required_license(self) -> None:
         """Expired children should be skipped before recipe execution."""
 

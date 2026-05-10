@@ -70,6 +70,8 @@ A FastMCP server for orchestrating Tenable MSSP child container workflows.
    ```text
    TENABLE_MSSP_PORTAL_ACCESS_KEY=replace-with-your-access-key
    TENABLE_MSSP_PORTAL_SECRET_KEY=replace-with-your-secret-key
+   # Optional: path to a plain-text child container UUID allowlist.
+   # TENABLE_MCP_MSSP_CHILD_CONTAINER_SCOPE_FILE=scopes/allowed-child-containers.txt
    # Optional: DEBUG, INFO, WARNING, ERROR, or CRITICAL
    # TENABLE_MCP_MSSP_LOG_LEVEL=WARNING
    ```
@@ -89,8 +91,22 @@ A FastMCP server for orchestrating Tenable MSSP child container workflows.
    gemini mcp add tenable-mcp-mssp /path/to/tenable-mcp-mssp/.venv/bin/python -m tenable_mcp_mssp.server
    ```
 
+## Child Container Scope
+
+Set `TENABLE_MCP_MSSP_CHILD_CONTAINER_SCOPE_FILE` to restrict child-container action tools to an explicit positive allowlist. If this value is unset or blank, all otherwise eligible child containers are allowed.
+
+The scope file is plain text with one child container UUID per line. Blank lines and full-line comments starting with `#` are ignored.
+
+```text
+# production batch 1
+75e2d005-946b-46fe-8e73-7887d310de33
+b210fe55-741b-49b4-ac3d-cafec153006f
+```
+
+Relative scope paths are resolved from the MCP server's configured working directory. The allowlist is checked before other eligibility gates, but it does not override existing exclusions: expired children, malformed expiration data, missing child accounts, and `licenseType: "ao"` children are still blocked from action.
+
 ## Logging
-Set `TENABLE_MCP_MSSP_LOG_LEVEL` to `DEBUG`, `INFO`, `WARNING`, `ERROR`, or `CRITICAL`. All logs are sent to `stderr`.
+Set `TENABLE_MCP_MSSP_LOG_LEVEL` to `DEBUG`, `INFO`, `WARNING`(default), `ERROR`, or `CRITICAL`. All logs are sent to `stderr`.
 ```bash
 codex mcp add --env TENABLE_MCP_MSSP_LOG_LEVEL=DEBUG tenable-mcp-mssp -- /bin/sh -c 'exec /path/to/tenable-mcp-mssp/.venv/bin/python -m tenable_mcp_mssp.server 2>> /path/to/logs/tenable-mcp-mssp.log'
 ```
@@ -99,6 +115,7 @@ codex mcp add --env TENABLE_MCP_MSSP_LOG_LEVEL=DEBUG tenable-mcp-mssp -- /bin/sh
 
 - `list_mssp_child_accounts`: List raw MSSP child account objects returned by Tenable, including license data.
 - `list_available_tenable_mcp_tools`: Discover the [Tenable Hexa AI MCP Server](https://docs.tenable.com/early-access/vulnerability-management/Content/getting-started/hexa-AI-MCP.htm) tool catalog for one child container.
+- `get_child_container_scope`: Show the configured child container allowlist scope for action tools.
 - `run_tenable_mcp_tool_for_child`: Run one [Tenable Hexa AI MCP Server](https://docs.tenable.com/early-access/vulnerability-management/Content/getting-started/hexa-AI-MCP.htm) tool on one child container for exploration.
 - `run_tenable_mcp_recipe_for_child`: Validate a known sequence of [Tenable Hexa AI MCP Server](https://docs.tenable.com/early-access/vulnerability-management/Content/getting-started/hexa-AI-MCP.htm) tool calls on one child container.
 - `run_tenable_mcp_recipe_across_child_containers`: Run a known working recipe across multiple child containers with controlled fan-out.

@@ -6,6 +6,7 @@ import unittest
 
 from tenable_mcp_mssp.child_account_eligibility import (
     ChildAccountEligibilityError,
+    CHILD_CONTAINER_OUT_OF_SCOPE_REASON,
     build_child_account_lookup,
     child_account_ineligible_reason,
     require_active_child_account,
@@ -41,6 +42,7 @@ class ChildAccountEligibilityTests(unittest.TestCase):
                     "license_expiration_date": 4_102_444_800,
                 }
             ],
+            scope_checker=lambda child_uuid: True,
         )
 
         self.assertEqual(account["uuid"], "child-1")
@@ -52,7 +54,11 @@ class ChildAccountEligibilityTests(unittest.TestCase):
             ChildAccountEligibilityError,
             "not found",
         ):
-            require_active_child_account("missing-child", account_lister=lambda: [])
+            require_active_child_account(
+                "missing-child",
+                account_lister=lambda: [],
+                scope_checker=lambda child_uuid: True,
+            )
 
     def test_child_account_ineligible_reason_rejects_expired_child(self) -> None:
         """Expired children should not be eligible for action."""
@@ -60,6 +66,7 @@ class ChildAccountEligibilityTests(unittest.TestCase):
         reason = child_account_ineligible_reason(
             "child-1",
             {"child-1": {"uuid": "child-1", "license_expiration_date": 1}},
+            scope_checker=lambda child_uuid: True,
         )
 
         self.assertEqual(reason, "child account license is expired")
@@ -77,6 +84,7 @@ class ChildAccountEligibilityTests(unittest.TestCase):
                     "license_expiration_date": "not-a-timestamp",
                 }
             },
+            scope_checker=lambda child_uuid: True,
         )
 
         self.assertEqual(
@@ -98,6 +106,69 @@ class ChildAccountEligibilityTests(unittest.TestCase):
                     "licenseType": "ao",
                 }
             },
+            scope_checker=lambda child_uuid: True,
+        )
+
+        self.assertEqual(
+            reason,
+            "child account license type is excluded from actions",
+        )
+
+    def test_child_account_ineligible_reason_rejects_out_of_scope_first(
+        self,
+    ) -> None:
+        """Scope should be checked before account and license details."""
+
+        reason = child_account_ineligible_reason(
+            "child-1",
+            {},
+            scope_checker=lambda child_uuid: False,
+        )
+
+        self.assertEqual(reason, CHILD_CONTAINER_OUT_OF_SCOPE_REASON)
+
+    def test_child_account_ineligible_reason_allows_in_scope_active_child(
+        self,
+    ) -> None:
+        """In-scope active children should remain eligible."""
+
+        reason = child_account_ineligible_reason(
+            "child-1",
+            {
+                "child-1": {
+                    "uuid": "child-1",
+                    "license_expiration_date": 4_102_444_800,
+                }
+            },
+            scope_checker=lambda child_uuid: True,
+        )
+
+        self.assertIsNone(reason)
+
+    def test_in_scope_expired_child_remains_rejected(self) -> None:
+        """Existing license expiration exclusions should still apply in scope."""
+
+        reason = child_account_ineligible_reason(
+            "child-1",
+            {"child-1": {"uuid": "child-1", "license_expiration_date": 1}},
+            scope_checker=lambda child_uuid: True,
+        )
+
+        self.assertEqual(reason, "child account license is expired")
+
+    def test_in_scope_ao_license_type_child_remains_rejected(self) -> None:
+        """Existing license type exclusions should still apply in scope."""
+
+        reason = child_account_ineligible_reason(
+            "child-1",
+            {
+                "child-1": {
+                    "uuid": "child-1",
+                    "license_expiration_date": 4_102_444_800,
+                    "licenseType": "ao",
+                }
+            },
+            scope_checker=lambda child_uuid: True,
         )
 
         self.assertEqual(

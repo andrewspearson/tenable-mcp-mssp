@@ -7,6 +7,10 @@ import logging
 from fastmcp import Context, FastMCP
 
 from tenable_mcp_mssp import __version__
+from tenable_mcp_mssp.child_container_scope import (
+    get_child_container_scope as get_scope_report,
+    load_child_container_scope,
+)
 from tenable_mcp_mssp.logging_config import configure_logging
 from tenable_mcp_mssp.mssp_accounts import list_child_accounts
 from tenable_mcp_mssp.multi_child_tenable_mcp import (
@@ -29,7 +33,8 @@ mcp = FastMCP(
         "child, experiment with one tool on one child, validate known recipes "
         "on one child, then use multi-child fan-out only after the recipe is "
         "known to work. Child API keys are generated internally, kept in "
-        "memory only, and never returned by public tools."
+        "memory only, and never returned by public tools. Child-container "
+        "action tools honor the configured positive allowlist when one is set."
     ),
     version=__version__,
 )
@@ -59,6 +64,18 @@ async def list_available_tenable_mcp_tools(
     """List official Tenable MCP tools for a child container."""
 
     return await list_tools_for_child(child_container_uuid)
+
+
+@mcp.tool(
+    name="get_child_container_scope",
+    description=(
+        "Show the configured child container allowlist scope for action tools."
+    ),
+)
+def get_child_container_scope() -> dict[str, object]:
+    """Return the configured child container action scope."""
+
+    return get_scope_report()
 
 
 @mcp.tool(
@@ -125,6 +142,7 @@ def main() -> None:
     """Run the MCP server."""
 
     configure_logging()
+    load_child_container_scope()
     logger.info("Starting Tenable MCP MSSP server version %s.", __version__)
     mcp.run()
 

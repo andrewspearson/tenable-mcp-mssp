@@ -1,6 +1,7 @@
 .idea/
 .venv/
 .env
+scopes/
 __pycache__/
 *.py[cod]
 *.egg-info/

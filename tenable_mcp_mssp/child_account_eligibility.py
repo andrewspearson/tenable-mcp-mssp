@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Mapping
 from typing import Any
 
@@ -10,7 +11,14 @@ from tenable_mcp_mssp.account_capabilities import (
     has_excluded_license_type,
     is_license_expired,
 )
+from tenable_mcp_mssp.child_container_scope import is_child_container_in_scope
 from tenable_mcp_mssp.mssp_accounts import list_child_accounts
+
+
+CHILD_CONTAINER_OUT_OF_SCOPE_REASON = (
+    "child account is not in configured child container scope"
+)
+logger = logging.getLogger(__name__)
 
 
 class ChildAccountEligibilityError(RuntimeError):
@@ -32,11 +40,16 @@ def build_child_account_lookup(
 def require_active_child_account(
     child_container_uuid: str,
     account_lister: Callable[[], list[dict[str, Any]]] = list_child_accounts,
+    scope_checker: Callable[[str], bool] | None = None,
 ) -> dict[str, Any]:
     """Return the active child account or raise a clear eligibility error."""
 
     account_lookup = build_child_account_lookup(account_lister)
-    reason = child_account_ineligible_reason(child_container_uuid, account_lookup)
+    reason = child_account_ineligible_reason(
+        child_container_uuid,
+        account_lookup,
+        scope_checker=scope_checker,
+    )
     if reason is not None:
         raise ChildAccountEligibilityError(reason)
 
@@ -46,8 +59,22 @@ def require_active_child_account(
 def child_account_ineligible_reason(
     child_container_uuid: str,
     account_lookup: Mapping[str, Mapping[str, Any]],
+    scope_checker: Callable[[str], bool] | None = None,
 ) -> str | None:
     """Return why a child account is ineligible, or None when active."""
+
+    child_in_scope = (
+        is_child_container_in_scope
+        if scope_checker is None
+        else scope_checker
+    )
+    if not child_in_scope(child_container_uuid):
+        logger.info(
+            "Skipped child %s before action: %s.",
+            child_container_uuid,
+            CHILD_CONTAINER_OUT_OF_SCOPE_REASON,
+        )
+        return CHILD_CONTAINER_OUT_OF_SCOPE_REASON
 
     account = account_lookup.get(child_container_uuid)
     if account is None:

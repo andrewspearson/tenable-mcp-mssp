@@ -29,6 +29,8 @@ class ServerToolRegistrationTests(unittest.IsolatedAsyncioTestCase):
                 "run_tenable_mcp_recipe_for_child",
                 "run_tenable_mcp_recipe_across_child_containers",
                 "bulk_vm_cve_query",
+                "get_bulk_vm_cve_query_status",
+                "get_bulk_vm_cve_query_result",
             ],
         )
 
@@ -52,6 +54,33 @@ class ServerToolRegistrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("ctx", properties)
         self.assertNotIn("max_concurrency", properties)
         self.assertNotIn("child_timeout_seconds", properties)
+
+    async def test_bulk_query_tools_expose_expected_parameters(self) -> None:
+        """Bulk query tools should expose only the intended public inputs."""
+
+        tools = await mcp.list_tools(run_middleware=False)
+        bulk_tool = next(
+            tool for tool in tools if tool.name == "bulk_vm_cve_query"
+        )
+        status_tool = next(
+            tool for tool in tools if tool.name == "get_bulk_vm_cve_query_status"
+        )
+        result_tool = next(
+            tool for tool in tools if tool.name == "get_bulk_vm_cve_query_result"
+        )
+
+        self.assertEqual(
+            list(bulk_tool.parameters["properties"]),
+            ["cve_ids"],
+        )
+        self.assertEqual(
+            list(status_tool.parameters["properties"]),
+            ["run_id"],
+        )
+        self.assertEqual(
+            list(result_tool.parameters["properties"]),
+            ["run_id"],
+        )
 
     async def test_public_multi_child_runner_does_not_pass_license_filter(
         self,

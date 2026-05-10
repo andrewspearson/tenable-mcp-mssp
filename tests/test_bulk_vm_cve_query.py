@@ -14,9 +14,13 @@ from tenable_mcp_mssp.bulk_vm_cve_query import (
     BulkVmCveQueryError,
     aggregate_bulk_query_results,
     bulk_vm_cve_query,
+    clear_bulk_vm_cve_query_runs,
+    get_bulk_vm_cve_query_result,
+    get_bulk_vm_cve_query_status,
     normalize_finding_for_csv,
     run_child_export_process,
     validate_cve_ids,
+    wait_for_bulk_vm_cve_query_run,
 )
 from tenable_mcp_mssp.bulk_vm_cve_query_worker import export_child_vulnerabilities
 from tenable_mcp_mssp.bulk_vm_cve_query_worker import sanitize_error as sanitize_worker_error
@@ -55,6 +59,11 @@ class BulkVmCveQueryValidationTests(unittest.TestCase):
 
 class BulkVmCveQueryTests(unittest.IsolatedAsyncioTestCase):
     """Tests for bulk VM CVE query orchestration."""
+
+    async def asyncSetUp(self) -> None:
+        """Reset in-memory bulk query runs before each test."""
+
+        clear_bulk_vm_cve_query_runs()
 
     async def test_bulk_query_exports_only_eligible_vm_children(self) -> None:
         """Only scoped, active VM children should run exports."""
@@ -115,14 +124,122 @@ class BulkVmCveQueryTests(unittest.IsolatedAsyncioTestCase):
                     process_runner=fake_process_runner,
                     results_root=Path(tmpdir),
                 )
+                await wait_for_bulk_vm_cve_query_run(str(result["run_id"]))
+                final_result = get_bulk_vm_cve_query_result(str(result["run_id"]))
 
         self.assertEqual(calls, ["vm-child"])
-        self.assertEqual(result["queued"], 5)
-        self.assertEqual(result["succeeded"], 1)
-        self.assertEqual(result["skipped"], 4)
-        self.assertEqual(result["total_findings"], 1)
-        self.assertNotIn("access-key", json.dumps(result))
-        self.assertNotIn("secret-key", json.dumps(result))
+        self.assertEqual(result["status"], "running")
+        self.assertEqual(final_result["queued"], 5)
+        self.assertEqual(final_result["succeeded"], 1)
+        self.assertEqual(final_result["skipped"], 4)
+        self.assertEqual(final_result["total_findings"], 1)
+        self.assertNotIn("access-key", json.dumps(final_result))
+        self.assertNotIn("secret-key", json.dumps(final_result))
+
+    async def test_bulk_query_returns_run_id_before_background_work_finishes(
+        self,
+    ) -> None:
+        """Starting a bulk query should not wait for the export to complete."""
+
+        export_started = asyncio.Event()
+        allow_export_to_finish = asyncio.Event()
+
+        async def fake_process_runner(
+            child_uuid: str,
+            account: object,
+            credential: ChildCredential,
+            cve_ids: list[str],
+            raw_directory: Path,
+            status_directory: Path,
+        ) -> dict[str, object]:
+            export_started.set()
+            await allow_export_to_finish.wait()
+            raw_file = raw_directory / f"{child_uuid}.jsonl"
+            raw_file.write_text("", encoding="utf-8")
+            return {
+                "status": "succeeded",
+                "raw_file_path": str(raw_file),
+                "finding_count": 0,
+                "child_container_name": "VM Child",
+            }
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = await bulk_vm_cve_query(
+                ["CVE-2021-44228"],
+                account_lister=lambda: [active_account("vm-child", "VM Child", ["vm"])],
+                credential_getter=fake_credential,
+                process_runner=fake_process_runner,
+                results_root=Path(tmpdir),
+            )
+            await asyncio.wait_for(export_started.wait(), timeout=1)
+            status = get_bulk_vm_cve_query_status(str(result["run_id"]))
+
+            self.assertEqual(result["status"], "running")
+            self.assertEqual(status["status"], "running")
+            self.assertEqual(status["run_id"], result["run_id"])
+
+            allow_export_to_finish.set()
+            await wait_for_bulk_vm_cve_query_run(str(result["run_id"]))
+            final_result = get_bulk_vm_cve_query_result(str(result["run_id"]))
+
+        self.assertEqual(final_result["status"], "succeeded")
+        self.assertEqual(final_result["succeeded"], 1)
+
+    async def test_status_and_result_use_latest_run_when_run_id_omitted(
+        self,
+    ) -> None:
+        """Status helpers should default to the latest in-memory run."""
+
+        async def fake_process_runner(
+            child_uuid: str,
+            account: object,
+            credential: ChildCredential,
+            cve_ids: list[str],
+            raw_directory: Path,
+            status_directory: Path,
+        ) -> dict[str, object]:
+            raw_file = raw_directory / f"{child_uuid}.jsonl"
+            raw_file.write_text("", encoding="utf-8")
+            return {
+                "status": "succeeded",
+                "raw_file_path": str(raw_file),
+                "finding_count": 0,
+                "child_container_name": "VM Child",
+            }
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            started = await bulk_vm_cve_query(
+                ["CVE-2021-44228"],
+                account_lister=lambda: [active_account("vm-child", "VM Child", ["vm"])],
+                credential_getter=fake_credential,
+                process_runner=fake_process_runner,
+                results_root=Path(tmpdir),
+            )
+            await wait_for_bulk_vm_cve_query_run(str(started["run_id"]))
+            status = get_bulk_vm_cve_query_status()
+            result = get_bulk_vm_cve_query_result()
+
+        self.assertEqual(status["run_id"], started["run_id"])
+        self.assertEqual(result["run_id"], started["run_id"])
+        self.assertIn("children", result)
+
+    async def test_background_failure_updates_run_status(self) -> None:
+        """Background failures should be visible through status helpers."""
+
+        def failing_account_lister() -> list[dict[str, object]]:
+            raise RuntimeError("account list failed")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            started = await bulk_vm_cve_query(
+                ["CVE-2021-44228"],
+                account_lister=failing_account_lister,
+                results_root=Path(tmpdir),
+            )
+            await wait_for_bulk_vm_cve_query_run(str(started["run_id"]))
+            status = get_bulk_vm_cve_query_status(str(started["run_id"]))
+
+        self.assertEqual(status["status"], "failed")
+        self.assertEqual(status["error"], "account list failed")
 
     async def test_process_cancellation_terminates_child_process(self) -> None:
         """Cancelled process exports should terminate the worker process."""

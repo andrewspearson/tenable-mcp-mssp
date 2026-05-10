@@ -8,7 +8,9 @@ import json
 import logging
 import re
 import sys
+import uuid
 from collections.abc import Awaitable, Callable, Mapping
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -55,6 +57,33 @@ class BulkVmCveQueryError(ValueError):
     """Raised when bulk VM CVE query input is invalid."""
 
 
+@dataclass
+class BulkVmCveQueryRun:
+    """In-memory state for one bulk VM CVE query run."""
+
+    run_id: str
+    cve_ids: list[str]
+    run_directory: Path
+    raw_directory: Path
+    aggregate_csv: Path
+    started_at: str
+    status: str = "running"
+    completed_at: str | None = None
+    queued: int = 0
+    succeeded: int = 0
+    failed: int = 0
+    skipped: int = 0
+    total_findings: int = 0
+    children: list[dict[str, object]] = field(default_factory=list)
+    latest_progress_message: str = "Bulk VM CVE query run started."
+    error: str | None = None
+    task: asyncio.Task[None] | None = field(default=None, repr=False)
+
+
+_RUNS: dict[str, BulkVmCveQueryRun] = {}
+_LATEST_RUN_ID: str | None = None
+
+
 async def bulk_vm_cve_query(
     cve_ids: list[str],
     account_lister: Callable[[], list[dict[str, Any]]] = list_child_accounts,
@@ -69,16 +98,150 @@ async def bulk_vm_cve_query(
     progress_reporter: ProgressReporter | None = None,
     results_root: Path = BULK_QUERY_RESULTS_DIR,
 ) -> dict[str, object]:
-    """Run a bulk VM CVE query across eligible child containers."""
+    """Start a background bulk VM CVE query across eligible child containers."""
 
     validated_cves = validate_cve_ids(cve_ids)
-    timestamp = build_timestamp()
-    run_directory = results_root / timestamp
+    run_id = build_run_id()
+    run_directory = results_root / run_id
     raw_directory = run_directory / "raw"
     status_directory = run_directory / "status"
-    aggregate_csv = run_directory / f"aggregate-report-{timestamp}.csv"
+    aggregate_csv = run_directory / f"aggregate-report-{run_id}.csv"
     raw_directory.mkdir(parents=True, exist_ok=True)
     status_directory.mkdir(parents=True, exist_ok=True)
+    run = BulkVmCveQueryRun(
+        run_id=run_id,
+        cve_ids=validated_cves,
+        run_directory=run_directory,
+        raw_directory=raw_directory,
+        aggregate_csv=aggregate_csv,
+        started_at=current_timestamp(),
+    )
+    register_bulk_vm_cve_query_run(run)
+    run.task = asyncio.create_task(
+        _execute_bulk_vm_cve_query_run(
+            run,
+            status_directory,
+            account_lister,
+            credential_getter,
+            process_runner,
+            progress_reporter,
+        )
+    )
+
+    logger.info("Started background bulk VM CVE query run %s.", run_id)
+    return build_run_report(run, include_children=False)
+
+
+def get_bulk_vm_cve_query_status(run_id: str | None = None) -> dict[str, object]:
+    """Return status for a background bulk VM CVE query run."""
+
+    run = get_bulk_vm_cve_query_run(run_id)
+    return build_run_report(run, include_children=False)
+
+
+def get_bulk_vm_cve_query_result(run_id: str | None = None) -> dict[str, object]:
+    """Return result details for a background bulk VM CVE query run."""
+
+    run = get_bulk_vm_cve_query_run(run_id)
+    return build_run_report(run, include_children=True)
+
+
+async def wait_for_bulk_vm_cve_query_run(run_id: str) -> None:
+    """Wait for a run to finish. Intended for tests and internal checks."""
+
+    run = get_bulk_vm_cve_query_run(run_id)
+    if run.task is not None:
+        await run.task
+
+
+def register_bulk_vm_cve_query_run(run: BulkVmCveQueryRun) -> None:
+    """Register a bulk VM CVE query run in memory."""
+
+    global _LATEST_RUN_ID
+    _RUNS[run.run_id] = run
+    _LATEST_RUN_ID = run.run_id
+
+
+def get_bulk_vm_cve_query_run(run_id: str | None = None) -> BulkVmCveQueryRun:
+    """Return an in-memory bulk VM CVE query run."""
+
+    selected_run_id = run_id or _LATEST_RUN_ID
+    if not selected_run_id:
+        raise BulkVmCveQueryError("bulk VM CVE query run not found.")
+
+    run = _RUNS.get(selected_run_id)
+    if run is None:
+        raise BulkVmCveQueryError("bulk VM CVE query run not found.")
+
+    return run
+
+
+def clear_bulk_vm_cve_query_runs() -> None:
+    """Clear in-memory bulk VM CVE query runs. Intended for tests."""
+
+    global _LATEST_RUN_ID
+    _RUNS.clear()
+    _LATEST_RUN_ID = None
+
+
+async def _execute_bulk_vm_cve_query_run(
+    run: BulkVmCveQueryRun,
+    status_directory: Path,
+    account_lister: Callable[[], list[dict[str, Any]]],
+    credential_getter: Callable[[str], ChildCredential],
+    process_runner: Callable[
+        [str, Mapping[str, Any], ChildCredential, list[str], Path, Path],
+        Awaitable[dict[str, object]],
+    ] | None,
+    progress_reporter: ProgressReporter | None,
+) -> None:
+    """Execute a registered bulk VM CVE query run in the background."""
+
+    try:
+        result = await _run_bulk_vm_cve_query_exports(
+            run,
+            status_directory,
+            account_lister,
+            credential_getter,
+            process_runner,
+            progress_reporter,
+        )
+    except Exception as exc:
+        run.status = "failed"
+        run.completed_at = current_timestamp()
+        run.error = str(exc)
+        run.latest_progress_message = "Bulk VM CVE query run failed."
+        logger.warning("Failed background bulk VM CVE query run %s.", run.run_id)
+        return
+
+    run.status = str(result["status"])
+    run.completed_at = current_timestamp()
+    run.queued = int(result["queued"])
+    run.succeeded = int(result["succeeded"])
+    run.failed = int(result["failed"])
+    run.skipped = int(result["skipped"])
+    run.total_findings = int(result["total_findings"])
+    children = result.get("children")
+    run.children = children if isinstance(children, list) else []
+    run.latest_progress_message = (
+        "Bulk VM CVE query run complete: "
+        f"{run.succeeded} succeeded, {run.failed} failed, "
+        f"{run.skipped} skipped."
+    )
+
+
+async def _run_bulk_vm_cve_query_exports(
+    run: BulkVmCveQueryRun,
+    status_directory: Path,
+    account_lister: Callable[[], list[dict[str, Any]]],
+    credential_getter: Callable[[str], ChildCredential],
+    process_runner: Callable[
+        [str, Mapping[str, Any], ChildCredential, list[str], Path, Path],
+        Awaitable[dict[str, object]],
+    ] | None,
+    progress_reporter: ProgressReporter | None,
+) -> dict[str, object]:
+    """Run the full bulk VM CVE query export workflow."""
 
     accounts = account_lister()
     child_uuids = [
@@ -86,13 +249,20 @@ async def bulk_vm_cve_query(
         for account in accounts
         if isinstance(account.get("uuid"), str)
     ]
+    run.queued = len(child_uuids)
     runner = process_runner or run_child_export_process
 
     logger.info(
-        "Started bulk VM CVE query for %d CVEs across %d child accounts.",
-        len(validated_cves),
+        "Started bulk VM CVE query run %s for %d CVEs across %d child accounts.",
+        run.run_id,
+        len(run.cve_ids),
         len(child_uuids),
     )
+
+    async def report_progress(done: int, total: int, message: str) -> None:
+        run.latest_progress_message = message
+        if progress_reporter is not None:
+            await progress_reporter(done, total, message)
 
     async def child_worker(
         child_container_uuid: str,
@@ -103,8 +273,8 @@ async def bulk_vm_cve_query(
             child_container_uuid,
             account,
             credential,
-            validated_cves,
-            raw_directory,
+            run.cve_ids,
+            run.raw_directory,
             status_directory,
         )
 
@@ -115,14 +285,14 @@ async def bulk_vm_cve_query(
         max_concurrency=DEFAULT_MAX_CONCURRENCY,
         child_timeout_seconds=DEFAULT_CHILD_TIMEOUT_SECONDS,
         account_lister=lambda: accounts,
-        progress_reporter=progress_reporter,
+        progress_reporter=report_progress,
         operation_name="bulk VM CVE export",
         timeout_error_label="child export",
         allow_empty=True,
     )
     total_findings = aggregate_bulk_query_results(
         fanout_report["children"],
-        aggregate_csv,
+        run.aggregate_csv,
     )
     status = "succeeded" if fanout_report["failed"] == 0 else "partial_failure"
 
@@ -134,10 +304,10 @@ async def bulk_vm_cve_query(
     )
     return {
         "status": status,
-        "cve_ids": validated_cves,
-        "run_directory": str(run_directory),
-        "raw_directory": str(raw_directory),
-        "aggregate_csv": str(aggregate_csv),
+        "cve_ids": run.cve_ids,
+        "run_directory": str(run.run_directory),
+        "raw_directory": str(run.raw_directory),
+        "aggregate_csv": str(run.aggregate_csv),
         "queued": fanout_report["queued"],
         "succeeded": fanout_report["succeeded"],
         "failed": fanout_report["failed"],
@@ -442,6 +612,48 @@ def build_timestamp() -> str:
     """Return a filesystem-friendly UTC timestamp."""
 
     return datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+
+
+def build_run_id() -> str:
+    """Return a unique bulk query run ID."""
+
+    return f"{build_timestamp()}-{uuid.uuid4().hex[:8]}"
+
+
+def current_timestamp() -> str:
+    """Return an ISO-formatted UTC timestamp."""
+
+    return datetime.now(UTC).isoformat()
+
+
+def build_run_report(
+    run: BulkVmCveQueryRun,
+    include_children: bool,
+) -> dict[str, object]:
+    """Return a JSON-friendly report for an in-memory run."""
+
+    report: dict[str, object] = {
+        "run_id": run.run_id,
+        "status": run.status,
+        "cve_ids": run.cve_ids,
+        "started_at": run.started_at,
+        "completed_at": run.completed_at,
+        "run_directory": str(run.run_directory),
+        "raw_directory": str(run.raw_directory),
+        "aggregate_csv": str(run.aggregate_csv),
+        "queued": run.queued,
+        "succeeded": run.succeeded,
+        "failed": run.failed,
+        "skipped": run.skipped,
+        "total_findings": run.total_findings,
+        "latest_progress_message": run.latest_progress_message,
+    }
+    if run.error:
+        report["error"] = run.error
+    if include_children:
+        report["children"] = run.children
+
+    return report
 
 
 def sanitize_error(message: str, credential: ChildCredential) -> str:

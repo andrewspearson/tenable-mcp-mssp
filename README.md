@@ -14,7 +14,7 @@ A FastMCP server for orchestrating Tenable MSSP child container workflows.
 - Run one [Tenable Hexa AI MCP Server](https://docs.tenable.com/early-access/vulnerability-management/Content/getting-started/hexa-AI-MCP.htm) tool against one child container for exploration.
 - Validate a known recipe of [Tenable Hexa AI MCP Server](https://docs.tenable.com/early-access/vulnerability-management/Content/getting-started/hexa-AI-MCP.htm) tool calls on one child container.
 - Run a known recipe across multiple child containers with eligibility checks, fixed concurrency, per-child timeouts, and batch progress messages.
-- Run an explicitly requested curated bulk VM CVE query that writes local JSONL and CSV artifacts.
+- Start an explicitly requested curated bulk VM CVE query as a server-managed background run that writes local JSONL and CSV artifacts.
 
 ## Prerequisites
 
@@ -120,7 +120,9 @@ codex mcp add --env TENABLE_MCP_MSSP_LOG_LEVEL=DEBUG tenable-mcp-mssp -- /bin/sh
 - `run_tenable_mcp_tool_for_child`: Run one [Tenable Hexa AI MCP Server](https://docs.tenable.com/early-access/vulnerability-management/Content/getting-started/hexa-AI-MCP.htm) tool on one child container for exploration.
 - `run_tenable_mcp_recipe_for_child`: Validate a known sequence of [Tenable Hexa AI MCP Server](https://docs.tenable.com/early-access/vulnerability-management/Content/getting-started/hexa-AI-MCP.htm) tool calls on one child container.
 - `run_tenable_mcp_recipe_across_child_containers`: Run a known working recipe across multiple child containers with controlled fan-out.
-- `bulk_vm_cve_query`: Run a curated direct pyTenable VM export for CVEs across eligible child containers. This tool should be used only when explicitly requested by name.
+- `bulk_vm_cve_query`: Start a curated direct pyTenable VM export for CVEs across eligible child containers. This tool should be used only when explicitly requested by name.
+- `get_bulk_vm_cve_query_status`: Check status for a server-managed `bulk_vm_cve_query` run.
+- `get_bulk_vm_cve_query_result`: Read final summary and artifact paths for a server-managed `bulk_vm_cve_query` run.
 
 Recommended workflow:
 
@@ -130,4 +132,4 @@ Recommended workflow:
 4. Validate a known recipe on one child container.
 5. Fan out the validated recipe across child containers.
 
-The `bulk_vm_cve_query` tool is separate from the standard Hexa AI MCP workflow. It accepts only a CVE list, derives eligible VM child containers internally, honors the configured child container scope and exclusions, writes raw JSONL exports plus an aggregate CSV under `results/bulk-vm-cve-query/<timestamp>/`, and returns only summary metadata with file paths.
+The `bulk_vm_cve_query` tool is separate from the standard Hexa AI MCP workflow. It accepts only a CVE list, derives eligible VM child containers internally, honors the configured child container scope and exclusions, writes raw JSONL exports plus an aggregate CSV under `results/bulk-vm-cve-query/<run-id>/`, and returns a `run_id` quickly. Use `get_bulk_vm_cve_query_status` and `get_bulk_vm_cve_query_result` to observe the server-managed run; these tools do not control child selection, batching, credentials, retries, or export execution. Run-level status is kept in memory and is lost if the MCP server restarts, but generated artifact files remain on disk.

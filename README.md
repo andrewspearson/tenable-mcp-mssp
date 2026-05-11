@@ -1,20 +1,25 @@
-# Tenable MSSP Portal MCP Server
+<div align="center">
+  <img width="800" alt="tenable-mcp-mssp" src="assets/tenable-mcp-mssp.png">
 
+# Tenable MSSP Portal MCP Server
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 ![Python](https://img.shields.io/badge/python-3.14-blue)
 
-A FastMCP server for orchestrating Tenable MSSP child container workflows.
+An MCP server for orchestrating Tenable MSSP child container workflows. Make bulk queries. Take bulk actions.
+</div>
 
 ## Features
 
-- List raw Tenable MSSP child account objects, including license data.
-- Generate temporary child API keys internally for child-container MCP calls.
-- Keep generated child API keys in process memory only; public tools do not return them.
-- Discover [Tenable Hexa AI MCP Server](https://docs.tenable.com/early-access/vulnerability-management/Content/getting-started/hexa-AI-MCP.htm) tools for a child container.
-- Run one [Tenable Hexa AI MCP Server](https://docs.tenable.com/early-access/vulnerability-management/Content/getting-started/hexa-AI-MCP.htm) tool against one child container for exploration.
-- Validate a known recipe of [Tenable Hexa AI MCP Server](https://docs.tenable.com/early-access/vulnerability-management/Content/getting-started/hexa-AI-MCP.htm) tool calls on one child container.
-- Run a known recipe across multiple child containers with eligibility checks, fixed concurrency, per-child timeouts, and batch progress messages.
-- Start an explicitly requested curated bulk VM CVE query as a server-managed background run that writes local JSONL and CSV artifacts.
+- Provides an MSSP aware wrapper around the [Tenable Hexa AI MCP Server](https://docs.tenable.com/early-access/vulnerability-management/Content/getting-started/hexa-AI-MCP.htm).
+- Executes all tools and functionality provided by the Tenable Hexa AI MCP Server across all child containers connected to your MSSP Portal.
+- Provides a tool, named `bulk_vm_cve_query`, to query a CVE or list of CVEs across all child containers connected to your MSSP Portal. This tool provides a CSV report of all findings in all in scope child containers.
+- Queries and actions taken against child containers run concurrently and operate on up to 10 child containers at a time.
+- Provides the ability to limit which child containers you perform an action on. 
+- Lists all child containers and license information.
+
+<img width="800" alt="list-child-containers" src="assets/list-child-containers.png">
+<img width="800" alt="bulk_vm_cve_query" src="assets/bulk_vm_cve_query.png">
+<img width="800" alt="bulk-tagging" src="assets/bulk-tagging.png">
 
 ## Prerequisites
 
@@ -23,7 +28,7 @@ A FastMCP server for orchestrating Tenable MSSP child container workflows.
 - `uv` or `pip` for local installation.
 - An MCP client capable of launching STDIO MCP servers (Codex, Claude, Gemini CLI, etc.).
 
-## Setup
+## Install
 1. **Download with `git`:**
 
    ```bash
@@ -92,6 +97,11 @@ A FastMCP server for orchestrating Tenable MSSP child container workflows.
    gemini mcp add tenable-mcp-mssp /path/to/tenable-mcp-mssp/.venv/bin/python -m tenable_mcp_mssp.server
    ```
 
+## Bulk CVE Query Tool
+The `bulk_vm_cve_query` tool is separate from the tools provided by the Tenable Hexa AI MCP. It accepts a list of CVEs and executes a [pyTenable vulnerability export](https://pytenable.readthedocs.io/en/stable/api/io/exports.html#tenable.io.exports.api.ExportsAPI.vulns) API call against in scope child containers concurrently. This is a fast and efficient way to query CVEs across all child containers connected to your MSSP Portal. Once all results are received, the tool will compile all results into a CSV report in the `reports/` folder in your working directory.
+
+**Your prompt must explicitly say to use the bulk_vm_cve_query tool. Example: "Use the bulk_vm_cve_query tool to find all child containers and assets with CVE-2026-31431".**
+
 ## Child Container Scope
 
 Set `TENABLE_MCP_MSSP_CHILD_CONTAINER_SCOPE_FILE` to restrict child-container action tools to an explicit positive allowlist. If this value is unset or blank, all otherwise eligible child containers are allowed.
@@ -104,7 +114,7 @@ The scope file is plain text with one child container UUID per line. Blank lines
 b210fe55-741b-49b4-ac3d-cafec153006f
 ```
 
-Relative scope paths are resolved from the MCP server's configured working directory. The allowlist is checked before other eligibility gates, but it does not override existing exclusions: expired children, malformed expiration data, missing child accounts, and `licenseType: "ao"` children are still blocked from action.
+Relative scope paths are resolved from the MCP server's configured working directory. The allowlist is checked before other eligibility gates, but it does not override existing exclusions: expired containers, malformed expiration data, missing child accounts, and `licenseType: "ao"` containers are still blocked from action.
 
 ## Logging
 Set `TENABLE_MCP_MSSP_LOG_LEVEL` to `DEBUG`, `INFO`, `WARNING`(default), `ERROR`, or `CRITICAL`. All logs are sent to `stderr`.
@@ -115,21 +125,11 @@ codex mcp add --env TENABLE_MCP_MSSP_LOG_LEVEL=DEBUG tenable-mcp-mssp -- /bin/sh
 ## Available Tools
 
 - `list_mssp_child_accounts`: List raw MSSP child account objects returned by Tenable, including license data.
-- `list_available_tenable_mcp_tools`: Discover the [Tenable Hexa AI MCP Server](https://docs.tenable.com/early-access/vulnerability-management/Content/getting-started/hexa-AI-MCP.htm) tool catalog for one child container.
+- `list_available_tenable_mcp_tools`: Discover the Tenable Hexa AI MCP Server tool catalog for one child container.
 - `get_child_container_scope`: Show the configured child container allowlist scope for action tools.
-- `run_tenable_mcp_tool_for_child`: Run one [Tenable Hexa AI MCP Server](https://docs.tenable.com/early-access/vulnerability-management/Content/getting-started/hexa-AI-MCP.htm) tool on one child container for exploration.
-- `run_tenable_mcp_recipe_for_child`: Validate a known sequence of [Tenable Hexa AI MCP Server](https://docs.tenable.com/early-access/vulnerability-management/Content/getting-started/hexa-AI-MCP.htm) tool calls on one child container.
+- `run_tenable_mcp_tool_for_child`: Run one Tenable Hexa AI MCP Server tool on one child container for exploration.
+- `run_tenable_mcp_recipe_for_child`: Validate a known sequence of Tenable Hexa AI MCP Server tool calls on one child container.
 - `run_tenable_mcp_recipe_across_child_containers`: Run a known working recipe across multiple child containers with controlled fan-out.
 - `bulk_vm_cve_query`: Start a curated direct pyTenable VM export for CVEs across eligible child containers. This tool should be used only when explicitly requested by name.
 - `get_bulk_vm_cve_query_status`: Check status for a server-managed `bulk_vm_cve_query` run.
 - `get_bulk_vm_cve_query_result`: Read final summary and artifact paths for a server-managed `bulk_vm_cve_query` run.
-
-Recommended workflow:
-
-1. List child accounts.
-2. Discover available [Tenable Hexa AI MCP Server](https://docs.tenable.com/early-access/vulnerability-management/Content/getting-started/hexa-AI-MCP.htm) tools on one child container.
-3. Experiment with single-tool calls on one child container.
-4. Validate a known recipe on one child container.
-5. Fan out the validated recipe across child containers.
-
-The `bulk_vm_cve_query` tool is separate from the standard Hexa AI MCP workflow. It accepts only a CVE list, derives eligible VM child containers internally, honors the configured child container scope and exclusions, writes raw JSONL exports plus an aggregate CSV under `results/bulk-vm-cve-query/<run-id>/`, and returns a `run_id` quickly. Use `get_bulk_vm_cve_query_status` and `get_bulk_vm_cve_query_result` to observe the server-managed run; these tools do not control child selection, batching, credentials, retries, or export execution. Run-level status is kept in memory and is lost if the MCP server restarts, but generated artifact files remain on disk.

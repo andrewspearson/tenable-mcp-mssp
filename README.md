@@ -98,7 +98,7 @@ An MCP server for orchestrating Tenable MSSP child container workflows. Make bul
    ```
 
 ## Bulk CVE Query Tool
-The `bulk_vm_cve_query` tool is separate from the tools provided by the Tenable Hexa AI MCP. It accepts a list of CVEs and executes a [pyTenable vulnerability export](https://pytenable.readthedocs.io/en/stable/api/io/exports.html#tenable.io.exports.api.ExportsAPI.vulns) API call against in scope child containers concurrently. This is a fast and efficient way to query CVEs across all child containers connected to your MSSP Portal. Once all results are received, the tool will compile all results into a CSV report in the `reports/` folder in your working directory.
+The `bulk_vm_cve_query` tool is separate from the tools provided by the Tenable Hexa AI MCP. It accepts a list of CVEs and executes a [pyTenable vulnerability export](https://pytenable.readthedocs.io/en/stable/api/io/exports.html#tenable.io.exports.api.ExportsAPI.vulns) API call against in scope child containers concurrently. This is a fast and efficient way to query CVEs across all child containers connected to your MSSP Portal. Once all results are received, the tool will compile all results into a CSV report in the `reports/bulk-vm-cve-query/<timestamp>/` folder in your working directory.
 
 **Your prompt must explicitly say to use the bulk_vm_cve_query tool. Example: "Use the bulk_vm_cve_query tool to find all child containers and assets with CVE-2026-31431".**
 

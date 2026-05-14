@@ -23,8 +23,9 @@ An MCP server for orchestrating Tenable MSSP child container workflows. Make bul
 
 ## Prerequisites
 
+- Tenable MSSP Portal API keys with Administrator privileges.
+- Tenable child containers with MCP capabilities.
 - Python 3.14 or newer.
-- Tenable MSSP Portal API keys with Administrator role privileges.
 - `uv` or `pip` for local installation.
 - An MCP client capable of launching STDIO MCP servers (Codex, Claude, Gemini CLI, etc.).
 
